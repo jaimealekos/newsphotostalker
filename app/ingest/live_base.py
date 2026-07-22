@@ -1,0 +1,183 @@
+"""Shared Playwright machinery for browser-driven live adapters.
+
+Only Reuters Connect needs this: it sits behind a DataDome bot-wall that
+blocks headless automation and plain HTTP clients, so it requires a real
+(headed) browser with a persisted, logged-in profile. AP and Getty are served
+over plain HTTP and do NOT use this base.
+
+Key facts verified against the live service (2026-07):
+  * DataDome triggers on headless Chromium. Running headed under a virtual
+    display (Xvfb) with a normal fingerprint passes. On a server, launch the
+    app under ``xvfb-run`` (see README) or set ``playwright.headless: false``
+    with a real/virtual display.
+  * The login is two-step: type email -> Continue -> type password -> Sign in
+    (the password step is served by auth.thomsonreuters.com).
+  * A persistent user-data-dir keeps the session, so login happens rarely.
+"""
+
+from __future__ import annotations
+
+import re
+import sys
+import time
+from pathlib import Path
+
+from .base import BaseAdapter, DownloadedFiles, RawAsset
+
+_BG_URL_RE = re.compile(r'url\(["\']?([^"\')]+)')
+
+
+class LiveAdapterError(RuntimeError):
+    pass
+
+
+class LiveAdapter(BaseAdapter):
+    """Playwright-backed base (headed, persistent profile, stealth)."""
+
+    #: Reuters must run headed to clear DataDome; force it regardless of config.
+    force_headed = True
+
+    def __init__(self, settings, credentials):
+        super().__init__(settings, credentials)
+        self._pw = None
+        self._context = None
+        self._page = None
+        self._logged_in = False
+
+    # -- lifecycle ---------------------------------------------------------
+    def open(self) -> None:
+        from playwright.sync_api import sync_playwright
+
+        pw_conf = self.settings.playwright
+        user_data = Path(pw_conf.user_data_dir)
+        if not user_data.is_absolute():
+            user_data = (self.settings.data_dir / "browser").resolve()
+        profile_dir = user_data / self.agency
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        # Un crash o reinicio del contenedor deja el lock de instancia única de
+        # Chromium en el perfil y todos los arranques posteriores abortan
+        # ("Failed to create a ProcessSingleton"). Los runs están serializados
+        # (runner._RUN_LOCK), así que aquí nunca hay otro Chromium legítimo
+        # sobre este perfil y el lock solo puede ser huérfano.
+        for name in ("SingletonLock", "SingletonSocket", "SingletonCookie"):
+            try:
+                (profile_dir / name).unlink()
+            except OSError:
+                pass
+
+        # Huella: NADA de user-agent falso ni parches JS "stealth". DataDome
+        # coteja UA vs navigator.platform vs client hints: un UA de Windows
+        # sobre un Chromium Linux (o plugins inventados) delata más que el
+        # navegador real. Lo único que se toca es el flag AutomationControlled
+        # (navigator.webdriver=false) y se quita --enable-automation que
+        # Playwright añade por defecto (infobar de "controlado por software").
+        # Solo en Linux sin GPU (NAS headless bajo Xvfb) forzamos ANGLE/EGL para
+        # que el WebGL salga como "Mesa llvmpipe" en vez de "SwiftShader" (señal
+        # de bot típica de headless). En Windows/macOS con Chrome real y GPU se
+        # deja el backend NATIVO (ANGLE D3D11/Metal): es la huella normal del
+        # navegador del usuario, la que mejor pasa DataDome.
+        args = ["--no-sandbox", "--disable-blink-features=AutomationControlled"]
+        if sys.platform.startswith("linux"):
+            args += ["--ignore-gpu-blocklist", "--use-gl=angle", "--use-angle=gl-egl"]
+        launch = dict(
+            user_data_dir=str(profile_dir),
+            headless=False if self.force_headed else pw_conf.headless,
+            args=args,
+            ignore_default_args=["--enable-automation"],
+            locale="es-ES",
+            timezone_id="Europe/Madrid",
+            viewport={"width": 1440, "height": 900},
+        )
+        if pw_conf.executable_path:
+            launch["executable_path"] = pw_conf.executable_path
+
+        self._pw = sync_playwright().start()
+        self._context = self._pw.chromium.launch_persistent_context(**launch)
+        self._context.set_default_timeout(pw_conf.timeout_ms)
+        self._page = self._context.new_page()
+
+        if self.requires_login:
+            self._ensure_login()
+
+    def close(self) -> None:
+        try:
+            if self._context:
+                self._context.close()
+        finally:
+            if self._pw:
+                self._pw.stop()
+            self._pw = self._context = self._page = None
+
+    # -- helpers -----------------------------------------------------------
+    @property
+    def page(self):
+        if self._page is None:
+            raise LiveAdapterError("browser not opened; call open() first")
+        return self._page
+
+    def _ensure_login(self) -> None:
+        if self._logged_in:
+            return
+        if not self.credentials.has_login:
+            raise LiveAdapterError(f"{self.agency}: live mode needs credentials")
+        self.login()
+        self._logged_in = True
+
+    def login(self) -> None:  # pragma: no cover - overridden
+        pass
+
+    def bg_image_url(self, selector: str) -> str | None:
+        """Read the CSS background-image URL of an element (lazy previews)."""
+        try:
+            css = self.page.eval_on_selector(selector, "el => getComputedStyle(el).backgroundImage")
+        except Exception:
+            return None
+        m = _BG_URL_RE.search(css or "")
+        return m.group(1) if m else None
+
+    def autoscroll(self, rounds: int = 6, pause: float = 1.4) -> None:
+        last = 0
+        for _ in range(rounds):
+            self.page.mouse.wheel(0, 3000)
+            time.sleep(pause)
+            h = self.page.evaluate("document.body.scrollHeight")
+            if h == last:
+                break
+            last = h
+
+    # -- download ----------------------------------------------------------
+    def download(self, asset: RawAsset, dest_dir) -> DownloadedFiles:
+        dest = Path(dest_dir)
+        dest.mkdir(parents=True, exist_ok=True)
+        headers = {
+            "Referer": f"https://www.{self.agency}connect.com/",
+            "Origin": f"https://www.{self.agency}connect.com",
+        }
+        preview_path = thumb_path = None
+        total = 0
+        if asset.preview_url:
+            body = self._fetch(asset.preview_url, headers)
+            preview_path = dest / "preview.jpg"
+            preview_path.write_bytes(body)
+            total += len(body)
+        if asset.thumbnail_url and asset.thumbnail_url != asset.preview_url:
+            tb = self._fetch(asset.thumbnail_url, headers)
+            thumb_path = dest / "thumb.jpg"
+            thumb_path.write_bytes(tb)
+            total += len(tb)
+        elif preview_path:
+            thumb_path = preview_path
+
+        if total == 0:
+            raise LiveAdapterError(f"{self.agency}: no image for {asset.external_id}")
+        return DownloadedFiles(
+            preview_path=str(preview_path) if preview_path else None,
+            thumbnail_path=str(thumb_path) if thumb_path else None,
+            file_bytes=total,
+        )
+
+    def _fetch(self, url: str, headers: dict) -> bytes:
+        resp = self._context.request.get(url, headers=headers)
+        if not resp.ok:
+            raise LiveAdapterError(f"download {resp.status} for {url}")
+        return resp.body()

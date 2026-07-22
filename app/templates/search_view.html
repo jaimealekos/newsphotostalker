@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}{{ search.name }} · newsphotostalker{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>
+    {{ search.name }}
+    <span class="muted">({{ total }} fotos · {{ stats.total_mb }} MB)</span>
+  </h1>
+  <div class="head-actions">
+    <form method="post" action="/searches/{{ search.id }}/run" class="inline">
+      <button class="btn btn-ghost" title="Buscar novedades ahora">↻ Ejecutar</button>
+    </form>
+    <a href="/?edit={{ search.id }}" class="btn btn-ghost">✎ Editar</a>
+    <a href="/" class="btn btn-ghost">← Volver</a>
+  </div>
+</div>
+
+{% if assets %}
+<div class="photo-grid">
+  {% for a in assets %}
+  <a class="card" href="/asset/{{ a.id }}">
+    <div class="card-img">
+      {% if a.thumbnail_path %}
+      <img loading="lazy" src="/media/{{ a.thumbnail_path }}" alt="{{ a.title or a.caption or '' }}">
+      {% else %}
+      <div class="noimg">sin imagen</div>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      <div class="card-cap">{{ (a.caption or a.title or '')[:110] }}</div>
+      <div class="card-meta">
+        <span>{{ a.photographer or '—' }}</span>
+        <span>{{ a.captured_at|ymd }}</span>
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+{% set pages = ((total - 1) // per_page) + 1 %}
+{% if pages > 1 %}
+<div class="pager">
+  {% if page > 1 %}<a class="btn btn-ghost" href="/searches/{{ search.id }}?page={{ page-1 }}">← Anterior</a>{% endif %}
+  <span class="muted">Página {{ page }} de {{ pages }}</span>
+  {% if page < pages %}<a class="btn btn-ghost" href="/searches/{{ search.id }}?page={{ page+1 }}">Siguiente →</a>{% endif %}
+</div>
+{% endif %}
+
+{# En la última página, tras la foto más antigua: ofrecer descargar más histórico. #}
+{% if page >= pages %}
+<div class="backfill-cta">
+  <p class="muted">Has llegado a la foto más antigua guardada. ¿Quieres bajar más histórico
+    (hasta el límite de retención: {{ search.retention_summary() }})?</p>
+  <form method="post" action="/searches/{{ search.id }}/backfill"
+        onsubmit="return confirm('Descargar el histórico hasta el límite de retención ({{ search.retention_summary() }})? Puede tardar varios minutos; corre en segundo plano (mira Actividad).');">
+    <button class="btn btn-primary">⤓ Rellenar histórico</button>
+  </form>
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+  <p>Esta búsqueda aún no tiene fotos.</p>
+  <p class="muted">Pulsa «↻ Ejecutar» para las novedades, o descarga el histórico completo:</p>
+  <form method="post" action="/searches/{{ search.id }}/backfill"
+        onsubmit="return confirm('Descargar el histórico hasta el límite de retención ({{ search.retention_summary() }})? Puede tardar varios minutos; corre en segundo plano (mira Actividad).');">
+    <button class="btn btn-primary">⤓ Rellenar histórico</button>
+  </form>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,41 @@
+# Sitio nginx para newsphotostalker.
+#
+# Patrón: nginx es lo único expuesto. Sirve directamente de disco lo pesado
+# (fotos y estáticos) y pasa el resto (login, panel, acciones) al motor
+# Python por el socket unix del servicio systemd.
+#
+# Instalación (ajusta server_name y rutas):
+#   sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/newsphotostalker
+#   sudo ln -s /etc/nginx/sites-available/newsphotostalker /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# Nota de seguridad (por diseño, "sin más seguridad"): /media/ se sirve sin
+# autenticación; cualquiera con la URL exacta de una foto puede verla. El
+# panel y las páginas sí requieren sesión.
+
+server {
+    listen 80;
+    server_name newsphotostalker.local;   # cámbialo a tu dominio / IP del NAS
+
+    # Fotos descargadas: directas de disco, con cache larga.
+    location /media/ {
+        alias /opt/newsphotostalker/data/media/;
+        expires 30d;
+        add_header Cache-Control "public";
+    }
+
+    # CSS / JS de la interfaz.
+    location /static/ {
+        alias /opt/newsphotostalker/app/static/;
+        expires 7d;
+    }
+
+    # Todo lo demás: el motor por el socket unix.
+    location / {
+        proxy_pass http://unix:/run/newsphotostalker/newsphotostalker.sock;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

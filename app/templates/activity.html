@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Actividad · newsphotostalker{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>Actividad</h1>
+</div>
+
+{% if runs %}
+<div class="runs">
+  {% for r in runs %}
+  <div class="run run-{{ r.status }}">
+    <span class="dot dot-{{ r.status }}"></span>
+    <span class="run-time">{{ r.started_at|humanize }}</span>
+    <span class="run-search">{{ search_names.get(r.search_id, "búsqueda #" ~ r.search_id) }}</span>
+    <span class="run-msg">{{ r.message or r.status }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="empty">Sin ejecuciones registradas todavía.</p>
+{% endif %}
+
+{% endblock %}

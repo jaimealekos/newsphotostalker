@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{{ "Editar" if search else "Nueva" }} búsqueda{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>{{ "Editar búsqueda" if search else "Nueva búsqueda" }}</h1>
+  <a href="/" class="btn btn-ghost">← Volver</a>
+</div>
+
+<form method="post" action="{{ '/searches/' ~ search.id if search else '/searches' }}" class="form-card" id="search-form">
+
+  <label>Nombre <span class="muted">(opcional)</span>
+    <input type="text" name="name" value="{{ search.name if search else '' }}" placeholder="p. ej. AP · Emilio Morenatti">
+  </label>
+
+  <div class="grid-2">
+    <label>Agencia
+      <select name="agency" required>
+        {% for val, lbl in agency_choices %}
+        <option value="{{ val }}" {% if search and search.agency == val %}selected{% endif %}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>Tipo de búsqueda
+      <select name="kind" required>
+        {% for val, lbl in kind_choices %}
+        <option value="{{ val }}" {% if search and search.kind == val %}selected{% endif %}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+
+  <label>Consulta
+    <input type="text" name="query" required value="{{ search.query if search else '' }}"
+           placeholder="Nombre del fotógrafo o términos de texto (p. ej. «Madrid APTOPIX»)">
+  </label>
+
+  <label>Modo de retención
+    <select name="retention_mode" id="retention_mode">
+      {% for val, lbl in retention_choices %}
+      <option value="{{ val }}" {% if search and search.retention_mode == val %}selected{% endif %}>{{ lbl }}</option>
+      {% endfor %}
+    </select>
+    <span class="hint">El refresco es común a todas las búsquedas y se configura en Ajustes.</span>
+  </label>
+
+  <div class="grid-2">
+    <label id="months-field">Meses a conservar
+      <input type="number" name="retention_months" min="1" value="{{ search.retention_months if search and search.retention_months else 3 }}">
+      <span class="hint">Se purgan las fotos más antiguas que este límite.</span>
+    </label>
+
+    <label id="mb-field">Límite de espacio (MB)
+      <input type="number" name="retention_mb" min="1" value="{{ search.retention_mb if search and search.retention_mb else '' }}">
+      <span class="hint">Al superarlo se purgan las más antiguas.</span>
+    </label>
+  </div>
+
+  <label class="checkbox">
+    <input type="checkbox" name="enabled" {% if not search or search.enabled %}checked{% endif %}>
+    Activa (se refresca junto a las demás)
+  </label>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">{{ "Guardar cambios" if search else "Crear búsqueda" }}</button>
+    <a href="/" class="btn btn-ghost">Cancelar</a>
+  </div>
+</form>
+
+<script>
+  // Show only the relevant retention field.
+  function syncRetention() {
+    const mode = document.getElementById('retention_mode').value;
+    document.getElementById('months-field').style.display = mode === 'time' ? '' : 'none';
+    document.getElementById('mb-field').style.display = mode === 'size' ? '' : 'none';
+  }
+  document.getElementById('retention_mode').addEventListener('change', syncRetention);
+  syncRetention();
+</script>
+{% endblock %}

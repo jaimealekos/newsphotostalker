@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}ajustes · newsphotostalker{% endblock %}
+{% block content %}
+
+<div class="page-head"><h1>ajustes</h1></div>
+
+<section class="stat-row">
+  <div class="stat-card"><div class="stat-num">{{ gstats.searches }}</div><div class="stat-lbl">búsquedas</div></div>
+  <div class="stat-card"><div class="stat-num">{{ gstats.enabled }}</div><div class="stat-lbl">activas</div></div>
+  <div class="stat-card"><div class="stat-num">{{ gstats.assets }}</div><div class="stat-lbl">fotos guardadas</div></div>
+  <div class="stat-card"><div class="stat-num">{{ gstats.total_mb }}</div><div class="stat-lbl">MB en disco</div></div>
+</section>
+
+{% if user.is_admin %}
+<section class="form-card">
+  <h2 class="section-title">Refresco y visualización</h2>
+  <form method="post" action="/settings/global" class="global-form">
+    <label>Fotos por página en cada búsqueda
+      <input type="number" name="photos_per_page" min="1" max="500" value="{{ app_settings.photos_per_page }}">
+    </label>
+    <div class="refresh-line">
+      <span>Refrescar <strong>todas</strong> las búsquedas cada</span>
+      <input class="num-sm" type="number" name="refresh_every" min="1" value="{{ app_settings.refresh_every }}">
+      <select name="refresh_unit">
+        <option value="hours" {% if app_settings.refresh_unit == 'hours' %}selected{% endif %}>horas</option>
+        <option value="days" {% if app_settings.refresh_unit == 'days' %}selected{% endif %}>días</option>
+      </select>
+      <span>empezando a las</span>
+      <input class="num-sm" type="number" name="refresh_start_hour" min="0" max="23" value="{{ app_settings.refresh_start_hour }}">
+      <span>:</span>
+      <input class="num-sm" type="number" name="refresh_start_minute" min="0" max="59" value="{{ '%02d'|format(app_settings.refresh_start_minute) }}">
+    </div>
+    <p class="muted small">Ahora: <strong>{{ app_settings.refresh_summary() }}</strong>. Todas las búsquedas
+      activas se actualizan juntas; puedes refrescar una al momento con el botón ↻ de cada búsqueda.</p>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Guardar ajustes</button>
+    </div>
+  </form>
+  <form method="post" action="/refresh-now" class="inline" style="margin-top:8px">
+    <button class="btn btn-ghost">↻ Actualizar todas ahora</button>
+  </form>
+</section>
+
+<section class="form-card">
+  <h2 class="section-title">Usuarios</h2>
+  <div class="users-list">
+    {% for u in users %}
+    <div class="user-row">
+      <form method="post" action="/users/{{ u.id }}" class="user-form">
+        <input type="text" name="username" value="{{ u.username }}" required>
+        <input type="password" name="password" placeholder="nueva contraseña (vacío = no cambiar)" autocomplete="new-password">
+        <button class="btn btn-ghost">Guardar</button>
+      </form>
+      {% if u.is_admin %}
+      <span class="pill pill-on" title="Administrador">admin</span>
+      {% else %}
+      <form method="post" action="/users/{{ u.id }}/delete" class="inline"
+            onsubmit="return confirm('¿Borrar al usuario «{{ u.username }}» con todas sus búsquedas y fotos?');">
+        <button class="btn btn-ghost danger">✕ Borrar</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  <form method="post" action="/users" class="user-form user-new">
+    <input type="text" name="username" placeholder="nuevo usuario" required>
+    <input type="password" name="password" placeholder="contraseña" required autocomplete="new-password">
+    <button class="btn btn-primary">+ Crear usuario</button>
+  </form>
+  <p class="muted small">Cada usuario tiene sus propias búsquedas y puede hacer todo lo mismo que el
+  admin, salvo gestionar usuarios.</p>
+</section>
+
+<section class="form-card">
+  <h2 class="section-title">Credenciales por agencia</h2>
+  <table class="searches">
+    <thead><tr><th>Servicio</th><th>Habilitado</th><th>Login</th><th>Usuario</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="agency agency-ap">AP</span></td>
+        <td>{{ "sí" if creds.ap.enabled else "no" }}</td>
+        <td>{{ "no requiere" if not creds.ap.has_login else "configurado" }}</td>
+        <td class="mono">{{ creds.ap.username or "—" }}</td>
+      </tr>
+      <tr>
+        <td><span class="agency agency-reuters">REUTERS</span></td>
+        <td>{{ "sí" if creds.reuters.enabled else "no" }}</td>
+        <td>{{ "configurado ✓" if creds.reuters.has_login else "falta" }}</td>
+        <td class="mono">{{ creds.reuters.username or "—" }}</td>
+      </tr>
+      <tr>
+        <td><span class="agency agency-getty">GETTY / AFP</span></td>
+        <td>{{ "sí" if creds.getty.enabled else "no" }}</td>
+        <td>{{ "configurado ✓" if creds.getty.has_login else "no requiere" }}</td>
+        <td class="mono">{{ creds.getty.username or "—" }}</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="muted small">AFP y Getty se descargan ambos a través del servicio de distribución de Getty.</p>
+</section>
+{% endif %}
+
+{% endblock %}

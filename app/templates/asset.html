@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ asset.title or asset.external_id }} · newsphotostalker{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <a href="/searches/{{ asset.search_id }}" class="btn btn-ghost">← Volver a la búsqueda</a>
+  <div class="head-actions">
+    {% if prev_id %}<a href="/asset/{{ prev_id }}" class="btn btn-ghost">← Anterior</a>
+    {% else %}<span class="btn btn-ghost btn-disabled">← Anterior</span>{% endif %}
+    {% if next_id %}<a href="/asset/{{ next_id }}" class="btn btn-ghost">Siguiente →</a>
+    {% else %}<span class="btn btn-ghost btn-disabled">Siguiente →</span>{% endif %}
+  </div>
+</div>
+
+<div class="asset-detail">
+  <div class="asset-image">
+    {% if asset.preview_path %}
+    <img src="/media/{{ asset.preview_path }}" alt="{{ asset.title or '' }}">
+    {% else %}
+    <div class="noimg big">sin imagen</div>
+    {% endif %}
+  </div>
+
+  <aside class="asset-meta">
+    <span class="agency agency-{{ asset.agency }}">{{ asset.agency|upper }}</span>
+    <h1>{{ asset.title or "Sin título" }}</h1>
+    <p class="caption">{{ asset.caption or "" }}</p>
+
+    <dl>
+      <dt>Fotógrafo</dt><dd>{{ asset.photographer or "—" }}</dd>
+      <dt>Crédito</dt><dd>{{ asset.credit or "—" }}</dd>
+      <dt>Fecha de captura</dt><dd>{{ asset.captured_at|ymd }}</dd>
+      <dt>ID de la agencia</dt><dd class="mono">{{ asset.external_id }}</dd>
+      <dt>Descargada</dt><dd>{{ asset.downloaded_at|humanize }}</dd>
+      <dt>Tamaño</dt><dd>{{ (asset.file_bytes / 1024)|round(0)|int }} KB</dd>
+      {% if asset.keywords %}
+      <dt>Palabras clave</dt>
+      <dd>{% for k in asset.keywords %}<span class="tag">{{ k }}</span>{% endfor %}</dd>
+      {% endif %}
+    </dl>
+
+    {% if asset.detail_url %}
+    <a href="{{ asset.detail_url }}" target="_blank" rel="noopener" class="btn btn-ghost">Ver en la agencia ↗</a>
+    {% endif %}
+
+    {% if asset.raw_metadata %}
+    <details class="raw">
+      <summary>Metadatos en bruto</summary>
+      <pre>{{ asset.raw_metadata | tojson(indent=2) }}</pre>
+    </details>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

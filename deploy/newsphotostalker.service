@@ -1,0 +1,32 @@
+# Servicio systemd de newsphotostalker.
+#
+# Instalación (ajusta rutas y usuario a tu servidor):
+#   sudo cp deploy/newsphotostalker.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now newsphotostalker
+#
+# El motor escucha en un socket unix; nginx es el único expuesto (ver
+# deploy/nginx.conf.example). Reuters en modo live necesita display: si el
+# servidor no tiene, cambia ExecStart por
+#   /usr/bin/xvfb-run -a <venv>/bin/uvicorn app.main:app --uds /run/newsphotostalker/newsphotostalker.sock
+
+[Unit]
+Description=newsphotostalker (motor de ingesta + panel)
+After=network.target
+
+[Service]
+Type=simple
+User=newsphotostalker
+Group=newsphotostalker
+WorkingDirectory=/opt/newsphotostalker
+ExecStart=/opt/newsphotostalker/.venv/bin/uvicorn app.main:app --uds /run/newsphotostalker/newsphotostalker.sock
+# Crea /run/newsphotostalker con permisos correctos y lo limpia al parar.
+RuntimeDirectory=newsphotostalker
+# nginx (grupo www-data) tiene que poder escribir en el socket: umask abierto
+# solo para el socket del RuntimeDirectory.
+UMask=0007
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

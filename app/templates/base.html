@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}newsphotostalker{% endblock %}</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📸</text></svg>">
+</head>
+<body>
+  <header class="topbar">
+    {% if user %}
+    <nav class="mainnav">
+      <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">newsphotostalker</a>
+      <a href="/settings" class="{% if request.url.path == '/settings' %}active{% endif %}">ajustes</a>
+    </nav>
+    <div class="topbar-user">
+      <span class="muted small">{{ user.username }}</span>
+      <form method="post" action="/logout" class="inline">
+        <button class="icon-btn" title="Salir">⏻</button>
+      </form>
+    </div>
+    {% endif %}
+  </header>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

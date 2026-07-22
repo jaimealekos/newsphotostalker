@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}newsphotostalker{% endblock %}
+{% block content %}
+
+<div class="page-head page-head-actions-only">
+  <div class="head-actions">
+    <a href="/searches/new" class="btn btn-primary">+ Nueva búsqueda</a>
+  </div>
+</div>
+
+<div class="table-wrap">
+<table class="searches compact">
+  <thead>
+    <tr>
+      <th>Estado</th><th class="col-search">Búsqueda</th><th>Agencia</th><th>Acciones</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for st in stats %}
+    {% set s = st.search %}
+    {% if edit_id == s.id %}
+    {# Modo edición: la fila se expande a un panel a ancho completo; la tabla
+       conserva sus 4 columnas y el resto de filas no se mueven. #}
+    <tr class="row-edit">
+      <td colspan="4">
+        <form method="post" action="/searches/{{ s.id }}" class="edit-panel">
+          <label>Nombre
+            <input type="text" name="name" value="{{ s.name }}" placeholder="Nombre">
+          </label>
+          <label>Consulta
+            <input type="text" name="query" value="{{ s.query }}" placeholder="Consulta" required>
+          </label>
+          <label>Agencia
+            <select name="agency">
+              {% for val, lbl in agency_choices %}
+              <option value="{{ val }}" {% if s.agency == val %}selected{% endif %}>{{ lbl }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Tipo
+            <select name="kind">
+              {% for val, lbl in kind_choices %}
+              <option value="{{ val }}" {% if s.kind == val %}selected{% endif %}>{{ lbl }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Retención
+            <span class="edit-retention">
+              <select name="retention_mode">
+                {% for val, lbl in retention_choices %}
+                <option value="{{ val }}" {% if s.retention_mode == val %}selected{% endif %}>{{ lbl }}</option>
+                {% endfor %}
+              </select>
+              <input type="number" name="retention_months" min="1" value="{{ s.retention_months or 3 }}" title="meses">
+              <input type="number" name="retention_mb" min="1" value="{{ s.retention_mb or '' }}" placeholder="MB" title="MB">
+            </span>
+          </label>
+          <label class="edit-check">
+            <input type="checkbox" name="enabled" {% if s.enabled %}checked{% endif %}> Activa
+          </label>
+          <div class="edit-footer">
+            <span class="muted small">Última ejecución: {{ s.last_run_at|humanize }} · {{ st.asset_count }} fotos · {{ st.total_mb }} MB</span>
+            <span class="edit-actions">
+              <button type="submit" class="btn btn-primary">Guardar</button>
+              <a href="/" class="btn btn-ghost">Cancelar</a>
+            </span>
+          </div>
+        </form>
+        <form method="post" action="/searches/{{ s.id }}/delete" class="edit-delete"
+              onsubmit="return confirm('¿Borrar la búsqueda «{{ s.name }}» y todas sus fotos?');">
+          <button class="btn btn-ghost danger">✕ Borrar búsqueda y sus fotos</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr class="{% if not s.enabled %}row-off{% endif %}">
+      <td>
+        <span class="dot dot-{{ s.last_status or 'none' }}" title="{{ s.last_status or 'sin ejecutar' }}{{ ' · pausada' if not s.enabled else '' }}"></span>
+      </td>
+      <td class="col-search">
+        <a class="search-name" href="/searches/{{ s.id }}">{{ s.name }}</a>
+        {% if s.last_error %}<div class="err-msg" title="{{ s.last_error }}">⚠ {{ s.last_error[:60] }}</div>{% endif %}
+      </td>
+      <td><span class="agency agency-{{ s.agency }}">{{ s.agency|upper }}</span></td>
+      <td class="actions">
+        <form method="post" action="/searches/{{ s.id }}/run" class="inline">
+          <button class="icon-btn" title="Buscar novedades ahora">↻</button>
+        </form>
+        <a href="/?edit={{ s.id }}" class="icon-btn" title="Editar">✎</a>
+      </td>
+    </tr>
+    {% endif %}
+    {% else %}
+    <tr><td colspan="4" class="empty">No hay búsquedas todavía. <a href="/searches/new">Crea la primera</a>.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% endblock %}

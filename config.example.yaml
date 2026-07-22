@@ -1,0 +1,71 @@
+# Copia este fichero a config.local.yaml y ajústalo.
+# config.local.yaml está en .gitignore y NUNCA se sube al repositorio.
+
+# Modo de ingesta:
+#   mock -> genera fotos sintéticas realistas para probar TODO el sistema sin
+#           tocar los servicios reales ni necesitar credenciales. Ideal para el
+#           primer arranque: copia este fichero, arranca y ejecuta las búsquedas.
+#   live -> usa los adaptadores reales y verificados:
+#             * AP     — API de búsqueda anónima (sin login)
+#             * Getty  — páginas de búsqueda por HTTP (sin login)
+#             * AFP    — distribuido por Getty (collections=afp)
+#             * Reuters— navegador con sesión iniciada (login humano; ver README)
+mode: mock
+
+# Dónde se guardan la base de datos SQLite y las fotos descargadas.
+data_dir: ./data
+db_url: sqlite:///./data/app.db
+
+# Cadencia por defecto (minutos) al crear búsquedas nuevas. El refresco es GLOBAL
+# (todas a la vez) y se configura desde el panel → ajustes.
+default_cadence_minutes: 360
+
+# Refresco periódico de la sesión de Reuters para que no caduque (mantiene viva
+# la cookie datadome y el token). 0 = desactivado (recomendado si arrancas la app
+# a demanda). En un servidor 24/7 puedes ponerlo a p. ej. 180 (cada 3 h).
+reuters_keepalive_minutes: 0
+
+agencies:
+  ap:
+    enabled: true
+    username: null      # AP no necesita credenciales
+    password: null
+
+  reuters:
+    enabled: true
+    # Reuters Connect (email / contraseña). Necesario en modo live.
+    username: tu-email@ejemplo.com
+    password: tu-contraseña-de-reuters
+
+  getty:                # Getty y AFP se sirven ambos por aquí
+    enabled: true
+    username: null      # las previews con marca de agua no necesitan login
+    password: null
+
+# Aviso opcional cuando una agencia deja de funcionar (disparo por flanco: un
+# aviso en el PRIMER fallo tras funcionar; se rearma al recuperarse). webhook_url
+# recibe un POST JSON {subject, message}; puedes apuntarlo a tu propio webhook
+# (p. ej. un flujo que reenvíe por email). Desactivado por defecto.
+alerts:
+  enabled: false
+  webhook_url: null
+  agencies: [reuters]
+
+playwright:
+  # Solo Reuters usa navegador. Está tras el muro anti-bot DataDome, que bloquea
+  # la automatización headless, así que Reuters corre HEADED. En un escritorio
+  # (Windows/macOS/Linux con pantalla) se abre una ventana de Chrome y haces el
+  # login a mano. En un servidor sin pantalla, arráncalo bajo Xvfb (ver deploy/).
+  headless: false
+  timeout_ms: 45000
+  # Perfil de navegador persistente (guarda la sesión de Reuters entre arranques).
+  # OJO: si ejecutas la app desde una unidad de red (UNC/SMB), Chromium no arranca
+  # con el perfil ahí — usa una ruta LOCAL, p. ej. en Windows:
+  #   C:/Users/TU_USUARIO/AppData/Local/newsphotostalker/browser
+  user_data_dir: ./data/browser
+  # Ruta a un binario de Chrome/Chromium. Recomendado apuntar al Google Chrome
+  # instalado (mejor huella para DataDome que el Chromium de Playwright):
+  #   Windows: C:/Program Files/Google/Chrome/Application/chrome.exe
+  #   Linux:   /usr/bin/google-chrome
+  # Déjalo en null para usar el Chromium que instala `playwright install chromium`.
+  executable_path: null

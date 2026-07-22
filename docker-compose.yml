@@ -1,0 +1,18 @@
+# Despliegue como servidor 24/7.
+#   1) cp config.example.yaml config.local.yaml   (pon mode: live, credenciales,
+#      y playwright.executable_path: /usr/bin/google-chrome)
+#   2) docker compose up -d --build
+#   3) Login de Reuters (servidor sin pantalla): ver deploy/README.md
+services:
+  newsphotostalker:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile
+    image: newsphotostalker:latest
+    init: true
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/srv/app/data                              # BD + fotos (persistente)
+      - ./config.local.yaml:/srv/app/config.local.yaml:ro  # credenciales/config

@@ -1,0 +1,19 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# Local data (database + downloaded media) — never commit agency content
+/data/
+data/
+
+# Secrets / local config with real credentials
+config.local.yaml
+.env
+*.local.yaml
+
+# OS
+.DS_Store
