@@ -162,6 +162,19 @@ def logout():
 
 
 # --- panel (búsquedas del usuario) ----------------------------------------
+# Última visita del navegador al dashboard (epoch UTC), para la luz de
+# novedades: verde si entró alguna foto después de esa marca.
+SEEN_COOKIE = "nps_dash_seen"
+
+
+def _seen_from_cookie(request: Request) -> datetime | None:
+    raw = request.cookies.get(SEEN_COOKIE)
+    try:
+        return datetime.fromtimestamp(int(raw), tz=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
 @app.get("/", response_class=HTMLResponse)
 def dashboard(
     request: Request,
@@ -170,10 +183,23 @@ def dashboard(
     edit: int | None = None,
 ):
     stats = services.all_search_stats(db, user.id)
-    return templates.TemplateResponse(
+    last_seen = _seen_from_cookie(request)
+    for st in stats:
+        added = st.last_added
+        if added is not None and added.tzinfo is None:
+            added = added.replace(tzinfo=timezone.utc)
+        st.has_new = bool(last_seen and added and added > last_seen)
+    response = templates.TemplateResponse(
         "dashboard.html",
         _ctx(request, stats=stats, edit_id=edit, user=user),
     )
+    response.set_cookie(
+        SEEN_COOKIE,
+        str(int(datetime.now(timezone.utc).timestamp())),
+        max_age=60 * 60 * 24 * 730,
+        samesite="lax",
+    )
+    return response
 
 
 @app.get("/searches/new", response_class=HTMLResponse)

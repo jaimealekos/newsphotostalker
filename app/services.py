@@ -133,6 +133,10 @@ class SearchStats:
     total_bytes: int
     newest: datetime | None
     oldest: datetime | None
+    # Cuándo se guardó la última foto; ``has_new`` lo rellena la ruta del
+    # dashboard comparándolo con la última visita del navegador (cookie).
+    last_added: datetime | None = None
+    has_new: bool = False
 
     @property
     def total_mb(self) -> float:
@@ -146,9 +150,10 @@ def search_stats(session: Session, search: Search) -> SearchStats:
             func.coalesce(func.sum(Asset.file_bytes), 0),
             func.max(Asset.captured_at),
             func.min(Asset.captured_at),
+            func.max(Asset.downloaded_at),
         ).where(Asset.search_id == search.id)
     ).one()
-    return SearchStats(search, row[0], row[1], row[2], row[3])
+    return SearchStats(search, row[0], row[1], row[2], row[3], row[4])
 
 
 def all_search_stats(session: Session, user_id: int) -> list[SearchStats]:

@@ -46,8 +46,9 @@ Usuario inicial: **`admin` / `admin`**. Cámbialo en *ajustes → usuarios*.
 
 ## El panel
 
-- **Portada**: la lista de tus búsquedas, con su estado (● verde = OK, rojo =
-  error, gris = pausada), la agencia y acciones (↻ ejecutar ahora, ✎ editar).
+- **Portada**: la lista de tus búsquedas, con su luz de novedades (● verde =
+  hay fotos nuevas desde tu última visita, gris = sin novedades; ⏸ = búsqueda
+  pausada), la agencia y acciones (↻ ejecutar ahora, ✎ editar).
 - **Vista de búsqueda**: la galería paginada de esa búsqueda, con pie de foto,
   autor, crédito y fecha. Al final de la última página está el botón **⤓ Rellenar
   histórico**.

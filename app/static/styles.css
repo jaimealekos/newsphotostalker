@@ -143,6 +143,11 @@ table.searches .num { text-align: right; font-variant-numeric: tabular-nums; }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--muted); }
 .dot-ok { background: var(--ok); } .dot-error { background: var(--err); }
 .dot-running { background: var(--warn); } .dot-none { background: #555; }
+/* Luz de novedades del dashboard: verde si entraron fotos desde la última
+   visita del navegador; gris si no. La pausa va en un icono aparte. */
+.dot-new { background: var(--ok); }
+.dot-idle { background: #555; }
+.paused { color: var(--muted); font-size: 12px; margin-left: 2px; cursor: default; }
 .pill { font-size: 11px; padding: 2px 8px; border-radius: 20px; }
 .pill-on { background: rgba(53,193,122,.15); color: var(--ok); }
 .pill-off { background: rgba(139,147,164,.15); color: var(--muted); }
