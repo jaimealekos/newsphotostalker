@@ -22,6 +22,13 @@
   --rule-2:  #b6ae9c;
   --flag:    #a51c1c;   /* rojo de agencia: novedades, errores, borrar */
 
+  /* Una tinta por agencia, para distinguirlas de un vistazo en la columna.
+     Elegidas para el papel hueso: saturadas pero sin chillar. */
+  --ap:      #8c1c2b;   /* granate */
+  --reuters: #cc6510;   /* naranja */
+  --getty:   #000000;   /* negro puro: resalta sobre la tinta del resto */
+  --afp:     #1d4a9c;   /* azul (AFP se distribuye por Getty, pero es otra) */
+
   --mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", "Consolas",
           "Liberation Mono", Menlo, monospace;
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
@@ -137,7 +144,8 @@ table.searches th {
 }
 table.searches td { padding: 11px 14px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
 table.searches tbody tr:last-child td { border-bottom: none; }
-table.searches tbody tr:hover td { background: var(--paper-2); }
+/* El separador no se resalta al pasar por encima: no es una fila que se abra. */
+table.searches tbody tr:not(.row-sep):hover td { background: var(--paper-2); }
 table.searches .num { text-align: right; font-variant-numeric: tabular-nums; }
 .row-off { color: var(--muted); }
 .row-off .search-name { color: var(--muted); }
@@ -164,13 +172,20 @@ table.searches .num { text-align: right; font-variant-numeric: tabular-nums; }
 .col-fresh { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }
 .fresh { color: var(--flag); cursor: help; }
 
-/* --- Agencia: el slug del cable, «(AP)» ---------------------------------- */
+/* --- Agencia: el slug del cable, «(AP)», cada una con su tinta ------------ */
 .agency {
   font: var(--cable); text-transform: uppercase; letter-spacing: var(--track);
   color: var(--ink-2); padding: 0; background: none;
 }
-.agency::before { content: "("; color: var(--muted); }
-.agency::after  { content: ")"; color: var(--muted); }
+/* Los paréntesis van de la misma tinta pero atenuados, para que el peso lo
+   lleve el nombre de la agencia. */
+.agency::before { content: "("; opacity: .45; }
+.agency::after  { content: ")"; opacity: .45; }
+.agency-ap      { color: var(--ap); }
+.agency-reuters { color: var(--reuters); }
+.agency-afp     { color: var(--afp); }
+.agency-getty   { color: var(--getty); }
+/* Una búsqueda pausada apaga también su tinta (gana en especificidad). */
 .row-off .agency { color: var(--muted); }
 
 /* --- Modo edición: arrastrar filas y separadores -------------------------- */
@@ -181,8 +196,14 @@ table.ordering tbody tr.dragging { opacity: .35; }
 table.ordering tbody tr.dragging td { background: var(--paper-3); }
 .order-hint { color: var(--muted); }
 .order-error { color: var(--flag); }
-/* Separador: una regla con su rótulo, como el corte entre despachos. */
-.row-sep td { background: transparent; padding-top: 22px !important; }
+/* Separador: una regla con su rótulo, como el corte entre despachos. Sin
+   título no lleva ni rótulo ni filete —la plantilla no pinta el span— y queda
+   solo el aire que abre el bloque siguiente. */
+/* Selector largo a propósito: `table.searches td` le gana en especificidad a
+   `.row-sep td` y volvería a pintar el filete. */
+table.searches tr.row-sep td {
+  background: transparent; padding-top: 22px; border-bottom: none;
+}
 tbody tr:first-child .sep-label, tbody tr:first-child .sep-input { margin-top: 0; }
 .sep-label {
   display: block; font: var(--cable); text-transform: uppercase;

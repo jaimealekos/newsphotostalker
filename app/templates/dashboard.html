@@ -48,7 +48,8 @@
         </form>
       </td>
       {% else %}
-      <td colspan="5"><span class="sep-label">{{ sep.label }}</span></td>
+      {# Sin título no se pinta rótulo ni filete: el separador es solo aire. #}
+      <td colspan="5">{% if sep.label %}<span class="sep-label">{{ sep.label }}</span>{% endif %}</td>
       {% endif %}
     </tr>
 
