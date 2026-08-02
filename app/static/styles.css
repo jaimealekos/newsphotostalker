@@ -208,10 +208,11 @@ table.searches tr.row-sep td {
    recupera el filete de siempre, que es lo que le da borde superior al bloque
    de abajo. Con título esa función ya la cumple la regla del propio rótulo. */
 table.searches tr.row-sep-blank td { border-bottom: 1px solid var(--rule); }
-/* Y la fila de ENCIMA del separador se queda sin el suyo: la banda de aire se
-   cierra con una sola línea, la de abajo, que es la que abre el bloque
-   siguiente. Con las dos, el hueco parecía una fila vacía. */
-table.searches tbody tr:has(+ tr.row-sep) td { border-bottom: none; }
+/* Varios separadores seguidos hacen UNA sola banda de aire: el que lleva otro
+   detrás no pinta su filete, así que no aparece una línea suelta en mitad del
+   hueco. La fila normal de encima sí conserva el suyo: es el que cierra su
+   bloque, igual que entre dos búsquedas cualesquiera. */
+table.searches tbody tr.row-sep:has(+ tr.row-sep) td { border-bottom: none; }
 tbody tr:first-child .sep-label, tbody tr:first-child .sep-input { margin-top: 0; }
 .sep-label {
   display: block; font: var(--cable); text-transform: uppercase;
