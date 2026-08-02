@@ -10,7 +10,7 @@ from datetime import timezone
 
 from app.config import get_settings
 from app.ingest.ap import APAdapter, _safe_date
-from app.ingest.getty import GettyAdapter, _strip_accents
+from app.ingest.getty import GettyAdapter, _find_comp, _strip_accents
 from app.ingest.reuters import _parse_reuters_date
 
 
@@ -62,6 +62,42 @@ def test_strip_accents():
 
 
 # --- Reuters --------------------------------------------------------------
+# --- Getty: comp grande de la ficha ---------------------------------------
+# El listado solo trae el JPEG de 612px y su firma va atada a ese tamaño; los
+# comps de 1024/2048 van firmados aparte y solo salen en la ficha de la foto.
+_FICHA = (
+    '<meta content="https://media.gettyimages.com/id/2288794175/es/foto/x.jpg'
+    "?s=1024x1024&amp;w=gi&amp;k=20&amp;c=MILUNO=\" property='og:image'/>"
+    '{"url":"https://media.gettyimages.com/id/2288794175/es/foto/x.jpg'
+    '?s=2048x2048\\u0026w=gi\\u0026k=20\\u0026c=DOSMIL="}'
+    '<img src="https://media.gettyimages.com/id/9999999/es/foto/otra.jpg'
+    '?s=2048x2048&amp;w=gi&amp;k=20&amp;c=RELACIONADA=">'
+)
+
+
+def test_getty_comp_prefiere_2048_y_desescapa_la_url():
+    url = _find_comp(_FICHA, "2288794175")
+    assert url.startswith("https://media.gettyimages.com/id/2288794175/")
+    assert "s=2048x2048" in url and "&amp;" not in url and "\\u0026" not in url
+    assert url.endswith("c=DOSMIL=")
+
+
+def test_getty_comp_no_se_lleva_el_de_una_foto_relacionada():
+    """La ficha enseña fotos parecidas: el id tiene que mandar."""
+    assert "9999999" not in (_find_comp(_FICHA, "2288794175") or "")
+    solo_relacionadas = _FICHA[_FICHA.index("<img"):]
+    assert _find_comp(solo_relacionadas, "2288794175") is None
+
+
+def test_getty_comp_cae_al_1024_si_no_hay_2048():
+    sin_2048 = _FICHA[: _FICHA.index('{"url"')]
+    assert "s=1024x1024" in _find_comp(sin_2048, "2288794175")
+
+
+def test_getty_sin_comp_devuelve_none():
+    assert _find_comp("<html>ni una foto</html>", "2288794175") is None
+
+
 def test_reuters_date_is_day_first():
     dt = _parse_reuters_date("06/07/2026 17:23")
     assert dt is not None

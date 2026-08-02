@@ -52,20 +52,19 @@ alerts:
   agencies: [reuters]
 
 playwright:
-  # Solo Reuters usa navegador. Está tras el muro anti-bot DataDome, que bloquea
-  # la automatización headless, así que Reuters corre HEADED. En un escritorio
-  # (Windows/macOS/Linux con pantalla) se abre una ventana de Chrome y haces el
-  # login a mano. En un servidor sin pantalla, arráncalo bajo Xvfb (ver deploy/).
-  headless: false
+  # Solo Reuters usa navegador (está tras el muro anti-bot DataDome). Con true no
+  # se abre NINGUNA ventana: verificado que DataDome deja pasar el headless nuevo
+  # de Chrome cuando la sesión ya está guardada en el perfil. El login manual
+  # (scripts.login_reuters) abre la ventana aunque esto esté en true, porque ahí
+  # hace falta una persona.
+  headless: true
   timeout_ms: 45000
   # Perfil de navegador persistente (guarda la sesión de Reuters entre arranques).
-  # OJO: si ejecutas la app desde una unidad de red (UNC/SMB), Chromium no arranca
-  # con el perfil ahí — usa una ruta LOCAL, p. ej. en Windows:
-  #   C:/Users/TU_USUARIO/AppData/Local/newsphotostalker/browser
   user_data_dir: ./data/browser
-  # Ruta a un binario de Chrome/Chromium. Recomendado apuntar al Google Chrome
-  # instalado (mejor huella para DataDome que el Chromium de Playwright):
+  # Ruta a un binario de Chrome/Chromium. Déjalo en null: en Windows se usa
+  # automáticamente el Google Chrome instalado, que además da mejor huella para
+  # DataDome (y el Chromium que empaqueta Playwright ni siquiera arranca headed
+  # en Windows: falla por SxS y sale como "spawn UNKNOWN").
   #   Windows: C:/Program Files/Google/Chrome/Application/chrome.exe
   #   Linux:   /usr/bin/google-chrome
-  # Déjalo en null para usar el Chromium que instala `playwright install chromium`.
   executable_path: null

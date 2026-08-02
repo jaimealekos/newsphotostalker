@@ -20,13 +20,20 @@ this adapter uses plain HTTP — no browser required. The verified contract:
   creditText, contentUrl/thumbnailUrl (612px unwatermarked JPEG on
   media.gettyimages.com) and uploadDate (full ISO timestamp — used as the
   novelty cursor).
+* Resolución (verificado 08-2026): el ``contentUrl`` del listado es de 612px y
+  su firma ``c=`` va **atada a ese tamaño** — cambiar ``s=`` a mano devuelve
+  400. Los comps grandes (1024 y 2048, con marca de agua) van firmados aparte y
+  solo aparecen en la ficha ``/detail/<id>``, así que la foto grande cuesta una
+  petición extra por foto NUEVA (ver :meth:`GettyAdapter.download`).
 """
 
 from __future__ import annotations
 
 import html as html_lib
 import re
+import time
 import unicodedata
+from dataclasses import replace
 from datetime import datetime
 from urllib.parse import quote_plus
 
@@ -36,6 +43,10 @@ from .base import RawAsset
 from .http_base import HttpAdapter, HttpAdapterError
 
 SEARCH_BASE = "https://www.gettyimages.com/search/2/image"
+DETAIL_BASE = "https://www.gettyimages.com/detail"
+
+# Tamaños de comp que publica la ficha, de mayor a menor preferencia.
+COMP_SIZES = ("2048x2048", "1024x1024")
 
 # Result cards: anchor by the asset id + testid marker, slice card-to-card.
 CARD_ANCHOR = re.compile(r'data-asset-id="(\d+)"\s+data-testid="galleryMosaicAsset"')
@@ -55,6 +66,8 @@ _FIELDS = {
 class GettyAdapter(HttpAdapter):
     #: pages fetched per run at most (60 results per page)
     MAX_PAGES = 3
+    #: pausa entre fichas al bajar los comps grandes (una por foto nueva)
+    DETAIL_DELAY = 0.5
 
     def __init__(self, settings, credentials, agency: str = "getty"):
         super().__init__(settings, credentials)
@@ -136,6 +149,30 @@ class GettyAdapter(HttpAdapter):
                 assets.append(asset)
         return assets
 
+    # -- download ----------------------------------------------------------
+    def download(self, asset: RawAsset, dest_dir):
+        """Guarda el comp grande como preview y el de 612 como miniatura.
+
+        El listado solo trae el JPEG de 612px; el grande hay que pedírselo a la
+        ficha de la foto. Esa petición extra solo se paga por foto NUEVA (el
+        runner ya ha descartado las que están guardadas), y si falla se baja el
+        de 612 de siempre en vez de perder la foto.
+        """
+        big = self._comp_url(asset)
+        if big:
+            asset = replace(asset, preview_url=big, thumbnail_url=asset.thumbnail_url or asset.preview_url)
+        return super().download(asset, dest_dir)
+
+    def _comp_url(self, asset: RawAsset) -> str | None:
+        url = asset.detail_url or f"{DETAIL_BASE}/{asset.external_id}"
+        try:
+            page_html = self.get_html(url)
+        except HttpAdapterError:
+            return None
+        finally:
+            time.sleep(self.DETAIL_DELAY)
+        return _find_comp(page_html, asset.external_id)
+
     def _parse_card(self, asset_id: str, segment: str, kind: str, query: str) -> RawAsset | None:
         def field(key):
             m = _FIELDS[key].search(segment)
@@ -169,6 +206,29 @@ class GettyAdapter(HttpAdapter):
                 "upload_date": field("upload_date"),
             },
         )
+
+
+def _find_comp(page_html: str, asset_id: str) -> str | None:
+    """URL firmada del comp más grande de ESA foto dentro de su ficha.
+
+    La ficha también enseña fotos relacionadas, así que el id va dentro del
+    patrón: si no, se colaría el comp de otra imagen.
+    """
+    # La ficha escapa las URLs de dos maneras: HTML (&amp;) en las etiquetas
+    # meta y JSON (&) en el estado embebido.
+    text = page_html.replace("&amp;", "&").replace("\\u0026", "&")
+    for size in COMP_SIZES:
+        match = re.search(
+            r'https://media\.gettyimages\.com/id/'
+            + re.escape(asset_id)
+            + r'/[^"\'\\\s]+?\.jpg\?s='
+            + size
+            + r'&[^"\'\\\s]*c=[^"\'\\\s&]+',
+            text,
+        )
+        if match:
+            return match.group(0)
+    return None
 
 
 def _strip_accents(text: str) -> str:

@@ -26,16 +26,55 @@ from .base import BaseAdapter, DownloadedFiles, RawAsset
 
 _BG_URL_RE = re.compile(r'url\(["\']?([^"\')]+)')
 
+# En Windows, el chrome.exe que empaqueta Playwright no arranca en modo headed
+# en bastantes máquinas: falla por SxS ("la configuración en paralelo no es
+# correcta") y Playwright lo enmascara como un escueto ``spawn UNKNOWN``. El
+# headless sí va, pero Reuters lo necesita headed, así que sin Chrome real no
+# hay nada que hacer. Como el binario instalado además da una huella más creíble
+# para DataDome, se usa por defecto cuando no se ha configurado otro.
+_WINDOWS_CHROME_PATHS = (
+    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    r"~\AppData\Local\Google\Chrome\Application\chrome.exe",
+)
+
+
+def _windows_chrome() -> str | None:
+    """Ruta del Chrome instalado en Windows (None en el resto de sistemas)."""
+    if not sys.platform.startswith("win"):
+        return None
+    for raw in _WINDOWS_CHROME_PATHS:
+        path = Path(raw).expanduser()
+        if path.exists():
+            return str(path)
+    return None
+
+
+def _launch_hint(exc: Exception, executable: str | None) -> str:
+    """Traduce el fallo de arranque a algo accionable en el panel."""
+    detail = str(exc).splitlines()[0]
+    if "spawn UNKNOWN" in detail and not executable:
+        return (
+            f"{detail} — el Chromium de Playwright no arranca headed en esta máquina "
+            "y no se ha encontrado Google Chrome instalado. Instálalo o apunta "
+            "playwright.executable_path a un Chrome/Chromium que sí arranque."
+        )
+    return detail
+
 
 class LiveAdapterError(RuntimeError):
     pass
 
 
 class LiveAdapter(BaseAdapter):
-    """Playwright-backed base (headed, persistent profile, stealth)."""
+    """Playwright-backed base (perfil persistente, sin ventanas por defecto)."""
 
-    #: Reuters must run headed to clear DataDome; force it regardless of config.
-    force_headed = True
+    #: Ventana visible. Solo la pide el login manual (scripts/login_reuters.py),
+    #: donde el humano tiene que ver el formulario y el CAPTCHA. Con False manda
+    #: ``playwright.headless`` de la configuración, y si aun así toca correr
+    #: headed (Linux bajo Xvfb), la ventana se abre fuera de la pantalla para no
+    #: aparecer encima de lo que estés haciendo.
+    show_window = False
 
     def __init__(self, settings, credentials):
         super().__init__(settings, credentials)
@@ -79,20 +118,34 @@ class LiveAdapter(BaseAdapter):
         args = ["--no-sandbox", "--disable-blink-features=AutomationControlled"]
         if sys.platform.startswith("linux"):
             args += ["--ignore-gpu-blocklist", "--use-gl=angle", "--use-angle=gl-egl"]
+
+        # Verificado 08-2026 con Chrome real y la sesión ya guardada en el
+        # perfil: DataDome deja pasar el headless nuevo de Chrome igual que el
+        # headed (lo que bloqueaba era el headless del Chromium empaquetado).
+        # Así que por defecto no se abre ninguna ventana. Si aun así se corre
+        # headed y nadie ha pedido ver la ventana, se manda fuera de pantalla.
+        headless = pw_conf.headless and not self.show_window
+        if not headless and not self.show_window:
+            args.append("--window-position=-32000,-32000")
+
         launch = dict(
             user_data_dir=str(profile_dir),
-            headless=False if self.force_headed else pw_conf.headless,
+            headless=headless,
             args=args,
             ignore_default_args=["--enable-automation"],
             locale="es-ES",
             timezone_id="Europe/Madrid",
             viewport={"width": 1440, "height": 900},
         )
-        if pw_conf.executable_path:
-            launch["executable_path"] = pw_conf.executable_path
+        executable = pw_conf.executable_path or _windows_chrome()
+        if executable:
+            launch["executable_path"] = executable
 
         self._pw = sync_playwright().start()
-        self._context = self._pw.chromium.launch_persistent_context(**launch)
+        try:
+            self._context = self._pw.chromium.launch_persistent_context(**launch)
+        except Exception as exc:  # noqa: BLE001 - el motivo real merece explicarse
+            raise LiveAdapterError(_launch_hint(exc, executable)) from exc
         self._context.set_default_timeout(pw_conf.timeout_ms)
         self._page = self._context.new_page()
 

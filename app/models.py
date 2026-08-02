@@ -32,18 +32,20 @@ KIND_TEXT = "text"
 
 
 class User(Base):
-    """Usuario del panel. Un admin gestiona al resto ("hijos"); la única
-    diferencia es que los hijos no pueden crear/editar/borrar usuarios."""
+    """El usuario del panel. Desde la 1.1 hay exactamente uno: el login sigue
+    existiendo, pero ya no hay administradores ni cuentas "hijas"."""
 
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(300))
-    is_admin: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     searches: Mapped[list["Search"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    separators: Mapped[list["Separator"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -52,8 +54,8 @@ class Search(Base):
     __tablename__ = "searches"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    # Nullable por la migración desde bases de datos pre-multiusuario; el
-    # arranque asigna los huérfanos al admin.
+    # Nullable por la migración desde bases de datos anteriores al login; el
+    # arranque adopta las búsquedas huérfanas.
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True
     )
@@ -71,11 +73,19 @@ class Search(Base):
 
     enabled: Mapped[bool] = mapped_column(default=True)
 
+    # Sitio que ocupa en el panel. El orden lo fija el usuario desde el modo
+    # edición y se comparte con los separadores (una sola lista ordenada).
+    position: Mapped[int] = mapped_column(Integer, default=0, index=True)
+
     # Runtime state
     cursor: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Última vez que se abrió ESTA búsqueda para ver sus novedades. La luz del
+    # panel se enciende cuando ha entrado alguna foto después de esta marca, así
+    # que entrar en una búsqueda solo apaga su propia luz.
+    seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -88,6 +98,24 @@ class Search(Base):
         if self.retention_mode == RETENTION_TIME:
             return f"{self.retention_months} meses"
         return f"{self.retention_mb} MB"
+
+
+class Separator(Base):
+    """Línea de separación con título dentro del panel.
+
+    Comparte la escala de ``position`` con las búsquedas: el panel mezcla ambas
+    en una sola lista ordenada, y el modo edición reparte las posiciones."""
+
+    __tablename__ = "separators"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True
+    )
+    label: Mapped[str] = mapped_column(String(200), default="")
+    position: Mapped[int] = mapped_column(Integer, default=0, index=True)
+
+    user: Mapped["User"] = relationship(back_populates="separators")
 
 
 class Asset(Base):

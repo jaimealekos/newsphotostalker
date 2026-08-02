@@ -13,7 +13,8 @@ Guía de uso completa. Para una visión rápida, mira el [README](README.md).
 - [Retención y purga](#retención-y-purga)
 - [Reuters: el login](#reuters-el-login)
 - [Modo mock vs live](#modo-mock-vs-live)
-- [Usuarios](#usuarios)
+- [Resolución de las fotos](#resolución-de-las-fotos)
+- [Tu cuenta](#tu-cuenta)
 - [Avisos por webhook](#avisos-por-webhook)
 - [Arquitectura](#arquitectura)
 - [Problemas frecuentes](#problemas-frecuentes)
@@ -42,17 +43,44 @@ uvicorn app.main:app          # http://127.0.0.1:8000
 En Windows puedes usar **`arrancar_servidor.bat`** (arranca el servidor, abre el
 navegador y deja la ventana abierta; cerrarla detiene el servidor).
 
-Usuario inicial: **`admin` / `admin`**. Cámbialo en *ajustes → usuarios*.
+Usuario inicial: **`admin` / `admin`**. Cámbialo en *ajustes → tu cuenta*.
 
 ## El panel
 
 - **Portada**: la lista de tus búsquedas, con su luz de novedades (● verde =
-  hay fotos nuevas desde tu última visita, gris = sin novedades; ⏸ = búsqueda
-  pausada), la agencia y acciones (↻ ejecutar ahora, ✎ editar).
+  han entrado fotos desde la última vez que abriste **esa** búsqueda, gris = sin
+  novedades; ⏸ = búsqueda pausada), la fecha de la última novedad, la agencia y
+  las acciones (↻ ejecutar ahora, ✎ editar).
 - **Vista de búsqueda**: la galería paginada de esa búsqueda, con pie de foto,
   autor, crédito y fecha. Al final de la última página está el botón **⤓ Rellenar
   histórico**.
-- **ajustes**: refresco global, fotos por página, usuarios y credenciales.
+- **ajustes**: refresco global, fotos por página, tu cuenta y credenciales.
+
+### La luz de novedades
+
+Cada búsqueda lleva su propia marca de «visto»: la luz se enciende cuando entra
+una foto después de la última vez que **abriste esa búsqueda**, y se apaga solo
+al abrirla. Mirar la portada no apaga nada, y entrar en una búsqueda no apaga las
+demás. La marca vive en la base de datos, no en una cookie, así que sobrevive a
+cambiar de navegador o a borrar los datos de navegación.
+
+La columna **última novedad** muestra la fecha de la foto más reciente, y solo
+aparece en las búsquedas que tienen la luz encendida. Pasando el ratón por encima
+se ve cuándo entró en el panel (que puede ser bastante después de hacerse).
+
+### Ordenar el panel y agrupar con separadores
+
+El botón **⇅ Ordenar** de la portada entra en el modo edición:
+
+- **arrastra** cualquier fila (por el asa ⠿ o por la fila entera) para colocarla;
+- **+ Separador** añade una línea de título entre búsquedas; escribe su nombre en
+  el propio campo y **✕** lo quita;
+- todo se guarda solo al soltar o al escribir — el aviso de la cabecera lo
+  confirma («Orden guardado ✓»);
+- **✓ Hecho** vuelve al panel normal.
+
+El orden y los separadores se guardan en la cuenta, no en el navegador. Mientras
+ordenas, el panel no se autorrefresca (si no, perderías el arrastre a medias).
 
 ## Crear y editar búsquedas
 
@@ -116,12 +144,22 @@ python -m scripts.login_reuters      # Windows: login_reuters.bat
 
 Se abre Chrome en la página de login; entra (email, contraseña y el deslizador si
 aparece). La sesión queda en el perfil (`data/browser/`) y se reutiliza. Si caduca,
-repite el login. Consejos:
+repite el login.
 
-- Apunta `playwright.executable_path` a tu **Google Chrome** (mejor huella que el
-  Chromium de Playwright, que además en Windows falla en modo headed).
-- En un **servidor sin pantalla**, arranca bajo Xvfb y haz el login por VNC/noVNC
-  (ver [`deploy/`](deploy/)).
+**Ese es el único momento en que verás una ventana.** Las ejecuciones normales van
+en headless: no se abre nada. Verificado en agosto de 2026 que DataDome deja pasar
+el headless nuevo de Chrome cuando la sesión ya está guardada en el perfil — lo que
+bloqueaba era el headless del Chromium que empaqueta Playwright. Se controla con
+`playwright.headless` (por defecto `true`); `login_reuters` abre la ventana pase lo
+que pase, porque ahí hace falta una persona.
+
+Consejos:
+
+- Deja `playwright.executable_path` en `null`: en Windows la app coge sola el
+  **Google Chrome** instalado, que además da mejor huella que el Chromium de
+  Playwright (y ese, en Windows, ni arranca headed).
+- En un **servidor sin pantalla** ya no hace falta Xvfb para las ejecuciones
+  normales; solo para el login manual, por VNC/noVNC (ver [`deploy/`](deploy/)).
 
 ## Modo mock vs live
 
@@ -130,12 +168,42 @@ repite el login. Consejos:
 - **mock**: fotos sintéticas realistas. Prueba todo sin tocar los servicios reales.
 - **live**: adaptadores reales (necesita credenciales de Reuters para esa agencia).
 
-## Usuarios
+## Resolución de las fotos
 
-El **admin** crea/edita/borra usuarios desde *ajustes*. Los demás usuarios hacen lo
-mismo salvo gestionar usuarios, y **cada uno tiene sus propias búsquedas y fotos**.
-Borrar un usuario elimina sus búsquedas y fotos. Contraseñas con PBKDF2; sesión por
-cookie firmada (con opción «recordar»).
+Lo que se guarda es la **preview** que cada agencia deja descargar sin licencia, y
+no todas dan lo mismo:
+
+| Agencia | Preview guardada | Miniatura | Tope del servicio |
+|---|---|---|---|
+| **Getty / AFP** | 2048 px (con marca de agua) | 612 px | 2048 |
+| **AP** | 1024 px (con marca de agua) | la misma | 1024 sin login |
+| **Reuters** | 640 px | la misma | 800 px, pero sale caro (ver abajo) |
+
+Detalle de Getty: la URL del listado es de 612 px y su firma va **atada a ese
+tamaño** (pedir `s=2048x2048` sobre ella devuelve 400). El comp grande va firmado
+aparte y solo aparece en la ficha de la foto, así que cada foto **nueva** cuesta
+una petición extra; si esa petición falla, se guarda la de 612 de siempre en vez
+de perder la foto.
+
+Por qué AP y Reuters no suben: la rendición `main` de AP (la de 5000 px) responde
+403 sin licencia, y la URL de Reuters va firmada **incluyendo el tamaño**, así que
+pedirle 1024 o 2048 da 403. Reuters sí publica 800 px, pero solo en la ficha del
+ítem, que hay que abrir con el navegador: unos 10 s por foto para pasar de 640 a
+800. No compensa, así que se queda en 640.
+
+Ojo con la **retención por espacio**: una foto de Getty pasa de ~50 KB a ~1 MB, así
+que un límite en MB que antes daba para miles de fotos ahora da para muchas menos.
+
+En la ficha, todas las fotos se ven al mismo ancho (1024) para que unas no salgan
+de golpe más pequeñas que otras; **un clic** las lleva a su resolución real. Las de
+Getty descargadas antes de la 1.1 siguen siendo de 612 px y ahí van ampliadas — el
+pie de la imagen lo avisa.
+
+## Tu cuenta
+
+newsphotostalker es de **un solo usuario**. Desde *ajustes → tu cuenta* cambias el
+nombre y la contraseña. Contraseñas con PBKDF2; sesión por cookie firmada (con
+opción «recordar»).
 
 ## Avisos por webhook
 
@@ -149,7 +217,7 @@ rearma al recuperarse). Puedes apuntarlo a cualquier flujo que reenvíe por emai
 app/
   config.py     Configuración + credenciales (YAML + env)
   database.py   Engine/sesión SQLAlchemy (SQLite, WAL)
-  models.py     User, Search, Asset, RunLog, AppSettings
+  models.py     User, Search, Separator, Asset, RunLog, AppSettings
   storage.py    Ficheros en disco
   retention.py  Purga por tiempo / espacio
   scheduler.py  Refresco global (APScheduler) + ejecución manual + backfill
@@ -171,6 +239,12 @@ API JSON (con sesión): `GET /api/status`, `GET /api/searches`.
 
 - **Reuters da error / 0 fotos**: la sesión caducó → repite `login_reuters`.
 - **Getty devuelve 0**: revisa que el nombre de artista sea el **exacto y completo**.
+- **`spawn UNKNOWN` al lanzar una búsqueda de Reuters (Windows)**: el Chromium
+  que empaqueta Playwright no arranca en modo headed en bastantes máquinas
+  Windows (falla por SxS y Playwright lo enmascara con ese mensaje). Desde la
+  1.1 la app usa **automáticamente el Google Chrome instalado** si no has puesto
+  `playwright.executable_path`, así que basta con tener Chrome. Si no lo tienes,
+  el error del panel te lo dice.
 - **Chromium no arranca con el perfil en una unidad de red**: pon
   `playwright.user_data_dir` en una ruta **local**.
 - **Una búsqueda se queda en pocas fotos**: usa **⤓ Rellenar histórico** (la

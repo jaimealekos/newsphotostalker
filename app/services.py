@@ -23,7 +23,9 @@ from .models import (
     Asset,
     RunLog,
     Search,
+    Separator,
     User,
+    utcnow,
 )
 
 AGENCY_CHOICES = [
@@ -41,7 +43,14 @@ RETENTION_CHOICES = [(RETENTION_TIME, "Por tiempo (meses)"), (RETENTION_SIZE, "P
 # ver scheduler.py). Crear/editar/activar una búsqueda ya NO programa un job
 # propio; enabled solo decide si el refresco global la incluye.
 def create_search(session: Session, form: dict, user_id: int) -> Search:
-    search = Search(user_id=user_id, **_normalise_form(form))
+    search = Search(
+        user_id=user_id,
+        position=_next_position(session, user_id),
+        # Nace vista: sus primeras fotos no cuentan como "novedad desde tu
+        # última visita" hasta que la búsqueda haya corrido estando tú fuera.
+        seen_at=utcnow(),
+        **_normalise_form(form),
+    )
     session.add(search)
     session.commit()
     return search
@@ -66,6 +75,109 @@ def toggle_search(session: Session, search: Search) -> Search:
     search.enabled = not search.enabled
     session.commit()
     return search
+
+
+def mark_seen(session: Session, search: Search) -> Search:
+    """Apaga la luz de novedades de UNA búsqueda (al abrirla)."""
+    search.seen_at = utcnow()
+    session.commit()
+    return search
+
+
+# --- orden del panel y separadores -----------------------------------------
+# Búsquedas y separadores comparten la escala de ``position``, así que el panel
+# es una sola lista ordenada que el usuario coloca a mano desde el modo edición.
+def _next_position(session: Session, user_id: int) -> int:
+    highest = max(
+        session.scalar(select(func.max(Search.position)).where(Search.user_id == user_id)) or 0,
+        session.scalar(select(func.max(Separator.position)).where(Separator.user_id == user_id)) or 0,
+    )
+    return highest + 1
+
+
+def create_separator(session: Session, user_id: int, label: str = "") -> Separator:
+    separator = Separator(
+        user_id=user_id,
+        label=(label or "").strip(),
+        position=_next_position(session, user_id),
+    )
+    session.add(separator)
+    session.commit()
+    return separator
+
+
+def update_separator(session: Session, separator: Separator, label: str) -> Separator:
+    separator.label = (label or "").strip()
+    session.commit()
+    return separator
+
+
+def delete_separator(session: Session, separator: Separator) -> None:
+    session.delete(separator)
+    session.commit()
+
+
+def own_separator(session: Session, separator_id: int, user_id: int) -> Separator | None:
+    separator = session.get(Separator, separator_id)
+    return separator if separator and separator.user_id == user_id else None
+
+
+def reorder_panel(session: Session, user_id: int, items: list[dict]) -> int:
+    """Reescribe el orden del panel a partir de la lista del modo edición.
+
+    ``items`` son ``{"type": "search"|"separator", "id": N}`` en el orden final;
+    los separadores pueden traer además ``label``, así que arrastrar y renombrar
+    se guardan de una vez. Solo se tocan las filas del usuario; lo que no venga
+    en la lista (una búsqueda creada en otra pestaña mientras editabas) se queda
+    detrás, con su orden intacto, en vez de saltar al principio.
+    """
+    mine = {
+        "search": set(session.scalars(select(Search.id).where(Search.user_id == user_id))),
+        "separator": set(
+            session.scalars(select(Separator.id).where(Separator.user_id == user_id))
+        ),
+    }
+    models = {"search": Search, "separator": Separator}
+
+    position = 0
+    moved = 0
+    for item in items:
+        kind = str(item.get("type"))
+        if kind not in models:
+            continue
+        try:
+            row_id = int(item.get("id"))
+        except (TypeError, ValueError):
+            continue
+        if row_id not in mine[kind]:
+            continue
+        row = session.get(models[kind], row_id)
+        if row is None:
+            continue
+        row.position = position
+        if kind == "separator" and "label" in item:
+            row.label = str(item.get("label") or "").strip()
+        position += 1
+        moved += 1
+
+    # Las filas que no venían en la lista van al final, conservando su orden.
+    leftovers = sorted(
+        [
+            row
+            for kind, model in models.items()
+            for row in session.scalars(select(model).where(model.user_id == user_id))
+            if not any(
+                str(i.get("type")) == kind and str(i.get("id")) == str(row.id) for i in items
+            )
+        ],
+        key=lambda r: r.position,
+    )
+    for row in leftovers:
+        row.position = position
+        position += 1
+
+    session.commit()
+    return moved
 
 
 # --- ajustes globales ------------------------------------------------------
@@ -133,8 +245,8 @@ class SearchStats:
     total_bytes: int
     newest: datetime | None
     oldest: datetime | None
-    # Cuándo se guardó la última foto; ``has_new`` lo rellena la ruta del
-    # dashboard comparándolo con la última visita del navegador (cookie).
+    # Cuándo se guardó la última foto. Comparado con el ``seen_at`` de la propia
+    # búsqueda da ``has_new``: la luz es de cada búsqueda, no del panel entero.
     last_added: datetime | None = None
     has_new: bool = False
 
@@ -153,16 +265,66 @@ def search_stats(session: Session, search: Search) -> SearchStats:
             func.max(Asset.downloaded_at),
         ).where(Asset.search_id == search.id)
     ).one()
-    return SearchStats(search, row[0], row[1], row[2], row[3], row[4])
+    stats = SearchStats(search, row[0], row[1], row[2], row[3], row[4])
+    stats.has_new = _has_new(stats.last_added, search.seen_at)
+    return stats
+
+
+def _has_new(last_added: datetime | None, seen_at: datetime | None) -> bool:
+    """¿Ha entrado alguna foto después de la última visita a esta búsqueda?"""
+    if last_added is None:
+        return False
+    if seen_at is None:
+        return True
+    return _aware(last_added) > _aware(seen_at)
+
+
+def _aware(value: datetime) -> datetime:
+    """SQLite devuelve fechas sin zona; se leen siempre como UTC."""
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 def all_search_stats(session: Session, user_id: int) -> list[SearchStats]:
     searches = list(
         session.scalars(
-            select(Search).where(Search.user_id == user_id).order_by(Search.agency, Search.name)
+            select(Search)
+            .where(Search.user_id == user_id)
+            .order_by(Search.position, Search.agency, Search.name)
         )
     )
     return [search_stats(session, s) for s in searches]
+
+
+@dataclass
+class PanelRow:
+    """Una fila del panel: o una búsqueda con sus datos, o un separador."""
+
+    kind: str  # "search" | "separator"
+    position: int
+    stats: SearchStats | None = None
+    separator: Separator | None = None
+
+    @property
+    def row_id(self) -> int:
+        return self.stats.search.id if self.kind == "search" else self.separator.id
+
+
+def panel_rows(session: Session, user_id: int) -> list[PanelRow]:
+    """Búsquedas y separadores mezclados en el orden que fijó el usuario."""
+    rows = [
+        PanelRow("search", st.search.position, stats=st)
+        for st in all_search_stats(session, user_id)
+    ]
+    rows += [
+        PanelRow("separator", sep.position, separator=sep)
+        for sep in session.scalars(
+            select(Separator).where(Separator.user_id == user_id).order_by(Separator.position)
+        )
+    ]
+    # A igualdad de posición (solo posible antes del primer reordenado) el
+    # separador encabeza el grupo que le sigue.
+    rows.sort(key=lambda r: (r.position, r.kind == "search", r.row_id))
+    return rows
 
 
 @dataclass
@@ -255,24 +417,9 @@ def recent_runs(session: Session, user_id: int, limit: int = 20) -> list[RunLog]
     )
 
 
-# --- usuarios (solo los maneja el admin) -----------------------------------
-def list_users(session: Session) -> list[User]:
-    return list(session.scalars(select(User).order_by(User.is_admin.desc(), User.username)))
-
-
-def create_user(session: Session, username: str, password: str) -> User | None:
-    username = (username or "").strip()
-    if not username or not password:
-        return None
-    if session.scalar(select(User).where(User.username == username)):
-        return None  # nombre ya en uso
-    user = User(username=username, password_hash=hash_password(password), is_admin=False)
-    session.add(user)
-    session.commit()
-    return user
-
-
+# --- la cuenta (desde la 1.1 hay una sola) ---------------------------------
 def update_user(session: Session, user: User, username: str, password: str) -> User:
+    """Cambia el nombre y/o la contraseña de la única cuenta."""
     username = (username or "").strip()
     if username and username != user.username:
         if not session.scalar(select(User).where(User.username == username)):
@@ -281,11 +428,3 @@ def update_user(session: Session, user: User, username: str, password: str) -> U
         user.password_hash = hash_password(password)
     session.commit()
     return user
-
-
-def delete_user(session: Session, user: User) -> None:
-    """Borra un usuario con todas sus búsquedas y fotos (ficheros incluidos)."""
-    for search in list(user.searches):
-        delete_search(session, search)
-    session.delete(user)
-    session.commit()

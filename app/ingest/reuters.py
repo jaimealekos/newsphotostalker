@@ -22,6 +22,14 @@ so this adapter drives a headed, logged-in Chromium profile (see
 * Preview images live on cdn1.agency.thomsonreuters.com and require a
   reutersconnect.com Referer to download (handled by the base download()).
 
+Resolución (verificado 08-2026): la URL de la tarjeta lleva el tamaño en la
+RUTA (``/preview/<newsml>/<binary>/640x640?...``) y va firmada por CloudFront
+**incluyendo ese tramo**, así que pedir 1024 o 2048 sobre ella devuelve 403
+(AccessDenied). El único tamaño mayor que publica Reuters es **800x800**, con
+su propia firma, y solo aparece en la ficha del ítem (``/app/item/…``), que hay
+que abrir con el navegador: ~10 s por foto para ganar de 640 a 800. No compensa,
+así que se guarda la de 640 de la tarjeta.
+
 Card overviews expose the *source agency*, not the individual byline, so for
 photographer searches the photographer is taken to be the query itself.
 """
@@ -70,12 +78,30 @@ class ReutersAdapter(LiveAdapter):
             page.wait_for_timeout(6000)
             page.fill("input[type='password']", self.credentials.password)
             page.click("button[type='submit']")
-            page.wait_for_url("**/reutersconnect.com/**", timeout=self.settings.playwright.timeout_ms)
-            page.wait_for_timeout(4000)
         except Exception as exc:  # noqa: BLE001
             raise LiveAdapterError(f"Reuters login failed: {exc}") from exc
+
+        # Tras enviar la contraseña, Reuters encadena varias redirecciones hasta
+        # /all. Se espera a aterrizar en el dominio, pero SIN exigir el evento
+        # 'load': /all es una SPA pesada que puede tardar minutos en dispararlo
+        # (o no hacerlo nunca) aunque la sesión ya esté abierta. Quien decide si
+        # el login ha ido bien es _looks_logged_in(), no el cronómetro.
+        try:
+            page.wait_for_url(
+                "**/reutersconnect.com/**",
+                wait_until="domcontentloaded",
+                timeout=self.settings.playwright.timeout_ms,
+            )
+        except Exception:  # noqa: BLE001
+            pass
+        page.wait_for_timeout(4000)
         if not self._looks_logged_in():
-            raise LiveAdapterError("Reuters login did not complete (bot-wall or bad credentials)")
+            raise LiveAdapterError(
+                "el login de Reuters no se completó (bot-wall o credenciales). "
+                "Haz el login a mano una vez con login_reuters.bat "
+                "(python -m scripts.login_reuters): abre la ventana del navegador "
+                "y la sesión queda guardada en el perfil."
+            )
 
     def _looks_logged_in(self) -> bool:
         return "/login" not in self.page.url and "auth.thomsonreuters.com" not in self.page.url

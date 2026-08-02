@@ -30,6 +30,9 @@ def main() -> int:
     adapter = ReutersAdapter(settings, settings.credentials_for("reuters"))
     # Sombra de instancia: open() no debe lanzar el login automático.
     adapter.requires_login = False
+    # Aquí SÍ hace falta ver la ventana: el login lo hace una persona. En las
+    # ejecuciones normales el navegador va sin ventana (ver LiveAdapter).
+    adapter.show_window = True
     adapter.open()
     page = adapter.page
 

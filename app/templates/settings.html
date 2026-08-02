@@ -11,7 +11,6 @@
   <div class="stat-card"><div class="stat-num">{{ gstats.total_mb }}</div><div class="stat-lbl">MB en disco</div></div>
 </section>
 
-{% if user.is_admin %}
 <section class="form-card">
   <h2 class="section-title">Refresco y visualización</h2>
   <form method="post" action="/settings/global" class="global-form">
@@ -42,33 +41,14 @@
 </section>
 
 <section class="form-card">
-  <h2 class="section-title">Usuarios</h2>
-  <div class="users-list">
-    {% for u in users %}
-    <div class="user-row">
-      <form method="post" action="/users/{{ u.id }}" class="user-form">
-        <input type="text" name="username" value="{{ u.username }}" required>
-        <input type="password" name="password" placeholder="nueva contraseña (vacío = no cambiar)" autocomplete="new-password">
-        <button class="btn btn-ghost">Guardar</button>
-      </form>
-      {% if u.is_admin %}
-      <span class="pill pill-on" title="Administrador">admin</span>
-      {% else %}
-      <form method="post" action="/users/{{ u.id }}/delete" class="inline"
-            onsubmit="return confirm('¿Borrar al usuario «{{ u.username }}» con todas sus búsquedas y fotos?');">
-        <button class="btn btn-ghost danger">✕ Borrar</button>
-      </form>
-      {% endif %}
-    </div>
-    {% endfor %}
-  </div>
-  <form method="post" action="/users" class="user-form user-new">
-    <input type="text" name="username" placeholder="nuevo usuario" required>
-    <input type="password" name="password" placeholder="contraseña" required autocomplete="new-password">
-    <button class="btn btn-primary">+ Crear usuario</button>
+  <h2 class="section-title">Tu cuenta</h2>
+  <form method="post" action="/account" class="user-form">
+    <input type="text" name="username" value="{{ user.username }}" required autocomplete="username">
+    <input type="password" name="password" placeholder="nueva contraseña (vacío = no cambiar)" autocomplete="new-password">
+    <button class="btn btn-primary">Guardar</button>
   </form>
-  <p class="muted small">Cada usuario tiene sus propias búsquedas y puede hacer todo lo mismo que el
-  admin, salvo gestionar usuarios.</p>
+  <p class="muted small">newsphotostalker es de un solo usuario: esta es la cuenta con la que entras
+  al panel. Si cambias el nombre, entra con el nuevo la próxima vez.</p>
 </section>
 
 <section class="form-card">
@@ -98,6 +78,5 @@
   </table>
   <p class="muted small">AFP y Getty se descargan ambos a través del servicio de distribución de Getty.</p>
 </section>
-{% endif %}
 
 {% endblock %}

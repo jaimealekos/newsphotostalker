@@ -131,6 +131,26 @@ table.searches .num { text-align: right; font-variant-numeric: tabular-nums; }
 .edit-delete { margin-top: 12px; text-align: right; }
 .edit-delete .danger { color: var(--danger, #e5534b); border-color: currentColor; }
 .search-name { font-weight: 600; color: var(--text); }
+/* Fecha de la última novedad (solo en las filas con la luz encendida) */
+.col-fresh { color: var(--muted); font-variant-numeric: tabular-nums; }
+.fresh { color: var(--ok); font-weight: 500; cursor: help; }
+
+/* Modo edición general: arrastrar filas y separadores */
+.col-grip { width: 1px; padding-right: 0 !important; }
+.grip { color: var(--muted); cursor: grab; user-select: none; font-size: 15px; letter-spacing: -2px; }
+table.ordering tbody tr[data-type] { cursor: grab; }
+table.ordering tbody tr.dragging { opacity: .4; background: var(--bg-3); }
+.order-hint { margin-right: 6px; }
+.order-error { color: var(--err); }
+/* Separadores: en modo normal, un rótulo que corta la lista; en edición, un
+   campo de texto en la misma fila. */
+.row-sep td { background: var(--bg-3); }
+.sep-label { color: var(--muted); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .08em; }
+.sep-input { width: 100%; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 7px; color: var(--text); padding: 6px 9px; font-size: 12px;
+  font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.sep-input:focus { outline: none; border-color: var(--primary); }
 .actions { white-space: nowrap; display: flex; gap: 5px; }
 .empty { text-align: center; color: var(--muted); padding: 40px; }
 
@@ -207,11 +227,17 @@ table.searches .num { text-align: right; font-variant-numeric: tabular-nums; }
 .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
 
 /* Asset detail */
-/* Ficha de foto: la imagen a resolución nativa, sin reescalar y sin
-   contenedores con scroll propio; los metadatos debajo. */
+/* Ficha de foto: todas se ven al mismo ancho (1024, el de las de AP) para que
+   una de Getty no salga de repente en pequeño; un clic la lleva a su tamaño
+   real, sin contenedores con scroll propio. Los metadatos, debajo. */
 .asset-detail { display: block; }
 .asset-image { margin-bottom: 24px; }
-.asset-image img { width: auto; max-width: none; height: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+.asset-image img { width: min(100%, 1024px); max-width: 100%; height: auto;
+  border-radius: var(--radius); border: 1px solid var(--border); cursor: zoom-in; }
+/* Las viejas de Getty (612px) se estiran hasta 1024 para no romper la fila;
+   .full las deja a su resolución real, sea mayor o menor. */
+.asset-image img.full { width: auto; max-width: none; cursor: zoom-out; }
+.zoom-hint { margin-top: 6px; }
 .asset-meta { max-width: 760px; }
 .btn-disabled { opacity: .4; pointer-events: none; }
 .asset-meta h1 { margin: 12px 0 8px; font-size: 20px; }

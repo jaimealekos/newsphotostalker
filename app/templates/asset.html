@@ -13,9 +13,13 @@
 </div>
 
 <div class="asset-detail">
+  {# Se muestra a 1024 como las de AP; un clic la lleva a su tamaño real (las
+     de Getty/AFP se guardan a 2048). #}
   <div class="asset-image">
     {% if asset.preview_path %}
-    <img src="/media/{{ asset.preview_path }}" alt="{{ asset.title or '' }}">
+    <img id="asset-img" src="/media/{{ asset.preview_path }}" alt="{{ asset.title or '' }}"
+         title="Clic para ver a tamaño completo">
+    <div class="zoom-hint muted small" id="zoom-hint"></div>
     {% else %}
     <div class="noimg big">sin imagen</div>
     {% endif %}

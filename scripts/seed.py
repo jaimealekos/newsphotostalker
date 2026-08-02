@@ -32,7 +32,7 @@ def main() -> None:
     init_db()
     created = 0
     with session_scope() as session:
-        admin = session.scalar(select(User).where(User.is_admin.is_(True)))
+        owner = session.scalar(select(User).order_by(User.id))
         for name, agency, kind, query in SEEDS:
             exists = session.scalar(
                 select(Search).where(
@@ -44,7 +44,7 @@ def main() -> None:
                 continue
             session.add(
                 Search(
-                    user_id=admin.id if admin else None,
+                    user_id=owner.id if owner else None,
                     name=name,
                     agency=agency,
                     kind=kind,

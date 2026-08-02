@@ -4,25 +4,63 @@
 
 <div class="page-head page-head-actions-only">
   <div class="head-actions">
-    <a href="/searches/new" class="btn btn-primary">+ Nueva búsqueda</a>
+    {% if order_mode %}
+    <span class="order-hint muted small" id="order-status">arrastra las filas para ordenarlas</span>
+    <form method="post" action="/separators" class="inline">
+      <button class="btn btn-ghost">+ separador</button>
+    </form>
+    <a href="/" class="btn btn-primary">✓ hecho</a>
+    {% else %}
+    <a href="/searches/new" class="btn btn-primary">+ nueva búsqueda</a>
+    <a href="/?order=1" class="btn btn-ghost" title="ordenar y separar las búsquedas">⇅ ordenar</a>
+    {% endif %}
   </div>
 </div>
 
 <div class="table-wrap">
-<table class="searches compact">
+<table class="searches compact {% if order_mode %}ordering{% endif %}" id="panel">
   <thead>
     <tr>
-      <th>Estado</th><th class="col-search">Búsqueda</th><th>Agencia</th><th>Acciones</th>
+      {% if order_mode %}<th class="col-grip"></th>{% endif %}
+      <th>Estado</th>
+      <th class="col-search">Búsqueda</th>
+      <th>Última novedad</th>
+      <th>Agencia</th>
+      <th>Acciones</th>
     </tr>
   </thead>
   <tbody>
-    {% for st in stats %}
-    {% set s = st.search %}
-    {% if edit_id == s.id %}
-    {# Modo edición: la fila se expande a un panel a ancho completo; la tabla
-       conserva sus 4 columnas y el resto de filas no se mueven. #}
-    <tr class="row-edit">
+    {% for row in rows %}
+
+    {% if row.kind == 'separator' %}
+    {% set sep = row.separator %}
+    <tr class="row-sep" data-type="separator" data-id="{{ sep.id }}" {% if order_mode %}draggable="true"{% endif %}>
+      {% if order_mode %}
+      <td class="col-grip"><span class="grip" title="Arrastra para mover">⠿</span></td>
       <td colspan="4">
+        <input class="sep-input" type="text" value="{{ sep.label }}" placeholder="Título del separador"
+               aria-label="Título del separador">
+      </td>
+      <td class="actions">
+        <form method="post" action="/separators/{{ sep.id }}/delete" class="inline"
+              onsubmit="return confirm('¿Quitar este separador?');">
+          <button class="icon-btn danger" title="Quitar separador">✕</button>
+        </form>
+      </td>
+      {% else %}
+      <td colspan="5"><span class="sep-label">{{ sep.label }}</span></td>
+      {% endif %}
+    </tr>
+
+    {% else %}
+    {% set st = row.stats %}
+    {% set s = st.search %}
+
+    {% if edit_id == s.id and not order_mode %}
+    {# Modo edición de UNA búsqueda: la fila se expande a un panel a ancho
+       completo; la tabla conserva sus columnas y el resto de filas no se mueven. #}
+    <tr class="row-edit">
+      <td colspan="5">
         <form method="post" action="/searches/{{ s.id }}" class="edit-panel">
           <label>Nombre
             <input type="text" name="name" value="{{ s.name }}" placeholder="Nombre">
@@ -72,8 +110,13 @@
         </form>
       </td>
     </tr>
+
     {% else %}
-    <tr class="{% if not s.enabled %}row-off{% endif %}">
+    <tr class="{% if not s.enabled %}row-off{% endif %}" data-type="search" data-id="{{ s.id }}"
+        {% if order_mode %}draggable="true"{% endif %}>
+      {% if order_mode %}
+      <td class="col-grip"><span class="grip" title="Arrastra para mover">⠿</span></td>
+      {% endif %}
       <td>
         <span class="dot {{ 'dot-new' if st.has_new else 'dot-idle' }}"
               title="{{ 'novedades desde tu última visita' if st.has_new else 'sin novedades' }}"></span>
@@ -83,17 +126,27 @@
         <a class="search-name" href="/searches/{{ s.id }}">{{ s.name }}</a>
         {% if s.last_error %}<div class="err-msg" title="{{ s.last_error }}">⚠ {{ s.last_error[:60] }}</div>{% endif %}
       </td>
+      {# La fecha de la novedad solo tiene sentido donde hay luz encendida. #}
+      <td class="col-fresh">
+        {% if st.has_new %}
+        <span class="fresh" title="entró {{ st.last_added|humanize }}">{{ st.newest|corta }}</span>
+        {% else %}<span class="muted">—</span>{% endif %}
+      </td>
       <td><span class="agency agency-{{ s.agency }}">{{ s.agency|upper }}</span></td>
       <td class="actions">
+        {% if not order_mode %}
         <form method="post" action="/searches/{{ s.id }}/run" class="inline">
           <button class="icon-btn" title="Buscar novedades ahora">↻</button>
         </form>
         <a href="/?edit={{ s.id }}" class="icon-btn" title="Editar">✎</a>
+        {% endif %}
       </td>
     </tr>
     {% endif %}
+    {% endif %}
+
     {% else %}
-    <tr><td colspan="4" class="empty">No hay búsquedas todavía. <a href="/searches/new">Crea la primera</a>.</td></tr>
+    <tr><td colspan="{{ 6 if order_mode else 5 }}" class="empty">No hay búsquedas todavía. <a href="/searches/new">Crea la primera</a>.</td></tr>
     {% endfor %}
   </tbody>
 </table>

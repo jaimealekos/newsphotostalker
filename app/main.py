@@ -1,4 +1,4 @@
-"""FastAPI application: newsphotostalker v1.0 — multiusuario, panel + API.
+"""FastAPI application: newsphotostalker 1.1 — panel + API, un solo usuario.
 
 En producción no se expone directamente: corre detrás de nginx en un socket
 unix (ver ``deploy/``). nginx sirve ``/static`` y ``/media`` como ficheros y
@@ -44,18 +44,9 @@ class NotAuthenticated(Exception):
     """Sin sesión válida → a /login."""
 
 
-class NotAuthorized(Exception):
-    """Con sesión pero sin permisos → a la portada."""
-
-
 @app.exception_handler(NotAuthenticated)
 async def _to_login(request: Request, exc: NotAuthenticated):
     return RedirectResponse("/login", status_code=303)
-
-
-@app.exception_handler(NotAuthorized)
-async def _to_home(request: Request, exc: NotAuthorized):
-    return RedirectResponse("/", status_code=303)
 
 
 def current_user(request: Request, db: Session) -> User | None:
@@ -68,12 +59,6 @@ def require_user(request: Request, db: Session = Depends(get_db)) -> User:
     user = current_user(request, db)
     if user is None:
         raise NotAuthenticated()
-    return user
-
-
-def require_admin(user: User = Depends(require_user)) -> User:
-    if not user.is_admin:
-        raise NotAuthorized()
     return user
 
 
@@ -101,7 +86,23 @@ def _humanize_dt(value: datetime | None) -> str:
     return value.strftime("%Y-%m-%d %H:%M")
 
 
+_MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+
+
+def _short_dt(value: datetime | None) -> str:
+    """Fecha corta en castellano: «2 ago, 14:35» (con el año si no es de este)."""
+    if value is None:
+        return "—"
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    stamp = f"{value.day} {_MESES[value.month - 1]}"
+    if value.year != datetime.now(timezone.utc).year:
+        return f"{stamp} {value.year}"
+    return f"{stamp}, {value:%H:%M}"
+
+
 templates.env.filters["humanize"] = _humanize_dt
+templates.env.filters["corta"] = _short_dt
 templates.env.filters["ymd"] = lambda v: v.strftime("%Y-%m-%d") if v else "—"
 templates.env.globals["settings"] = settings
 
@@ -161,45 +162,28 @@ def logout():
     return response
 
 
-# --- panel (búsquedas del usuario) ----------------------------------------
-# Última visita del navegador al dashboard (epoch UTC), para la luz de
-# novedades: verde si entró alguna foto después de esa marca.
-SEEN_COOKIE = "nps_dash_seen"
-
-
-def _seen_from_cookie(request: Request) -> datetime | None:
-    raw = request.cookies.get(SEEN_COOKIE)
-    try:
-        return datetime.fromtimestamp(int(raw), tz=timezone.utc)
-    except (TypeError, ValueError):
-        return None
-
-
+# --- panel ------------------------------------------------------------------
+# La luz de novedades es de cada búsqueda y vive en la base de datos
+# (``Search.seen_at``), no en una cookie del navegador: abrir una búsqueda apaga
+# solo la suya y el estado sobrevive a cambiar de navegador o borrar cookies.
 @app.get("/", response_class=HTMLResponse)
 def dashboard(
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_user),
     edit: int | None = None,
+    order: int = 0,
 ):
-    stats = services.all_search_stats(db, user.id)
-    last_seen = _seen_from_cookie(request)
-    for st in stats:
-        added = st.last_added
-        if added is not None and added.tzinfo is None:
-            added = added.replace(tzinfo=timezone.utc)
-        st.has_new = bool(last_seen and added and added > last_seen)
-    response = templates.TemplateResponse(
+    return templates.TemplateResponse(
         "dashboard.html",
-        _ctx(request, stats=stats, edit_id=edit, user=user),
+        _ctx(
+            request,
+            rows=services.panel_rows(db, user.id),
+            edit_id=edit,
+            order_mode=bool(order),
+            user=user,
+        ),
     )
-    response.set_cookie(
-        SEEN_COOKIE,
-        str(int(datetime.now(timezone.utc).timestamp())),
-        max_age=60 * 60 * 24 * 730,
-        samesite="lax",
-    )
-    return response
 
 
 @app.get("/searches/new", response_class=HTMLResponse)
@@ -239,6 +223,8 @@ def search_view(
     search = _own_search(db, search_id, user)
     if not search:
         return RedirectResponse("/", status_code=303)
+    # Abrir la búsqueda es "ver las novedades": apaga SOLO esta luz.
+    services.mark_seen(db, search)
     per_page = services.get_app_settings(db).photos_per_page
     assets, total = services.search_assets(db, search_id, page=page, per_page=per_page)
     return templates.TemplateResponse(
@@ -316,6 +302,51 @@ def backfill_search_now(
     return RedirectResponse(f"/searches/{search_id}", status_code=303)
 
 
+# --- orden del panel y separadores -----------------------------------------
+@app.post("/panel/order")
+async def save_panel_order(
+    request: Request, db: Session = Depends(get_db), user: User = Depends(require_user)
+):
+    """Guarda el orden que dejó el modo edición (búsquedas y separadores)."""
+    payload = await request.json()
+    items = payload.get("items") if isinstance(payload, dict) else payload
+    moved = services.reorder_panel(db, user.id, items if isinstance(items, list) else [])
+    return JSONResponse({"ok": True, "moved": moved})
+
+
+@app.post("/separators")
+def add_separator(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
+    label: str = Form(""),
+):
+    services.create_separator(db, user.id, label)
+    return RedirectResponse("/?order=1", status_code=303)
+
+
+@app.post("/separators/{separator_id}")
+def rename_separator(
+    separator_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
+    label: str = Form(""),
+):
+    separator = services.own_separator(db, separator_id, user.id)
+    if separator:
+        services.update_separator(db, separator, label)
+    return RedirectResponse("/?order=1", status_code=303)
+
+
+@app.post("/separators/{separator_id}/delete")
+def remove_separator(
+    separator_id: int, db: Session = Depends(get_db), user: User = Depends(require_user)
+):
+    separator = services.own_separator(db, separator_id, user.id)
+    if separator:
+        services.delete_separator(db, separator)
+    return RedirectResponse("/?order=1", status_code=303)
+
+
 @app.get("/asset/{asset_id}", response_class=HTMLResponse)
 def asset_detail(
     asset_id: int,
@@ -350,14 +381,13 @@ def settings_page(
     request: Request, db: Session = Depends(get_db), user: User = Depends(require_user)
 ):
     creds = {}
-    if user.is_admin:
-        for agency in ["ap", "reuters", "getty"]:
-            c = settings.agencies.get(agency)
-            creds[agency] = {
-                "enabled": c.enabled if c else False,
-                "has_login": c.has_login if c else False,
-                "username": (c.username if c else None),
-            }
+    for agency in ["ap", "reuters", "getty"]:
+        c = settings.agencies.get(agency)
+        creds[agency] = {
+            "enabled": c.enabled if c else False,
+            "has_login": c.has_login if c else False,
+            "username": (c.username if c else None),
+        }
     return templates.TemplateResponse(
         "settings.html",
         _ctx(
@@ -365,7 +395,6 @@ def settings_page(
             creds=creds,
             gstats=services.global_stats(db, user.id),
             app_settings=services.get_app_settings(db),
-            users=services.list_users(db) if user.is_admin else [],
             user=user,
         ),
     )
@@ -374,7 +403,7 @@ def settings_page(
 @app.post("/settings/global")
 def update_global_settings(
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
+    user: User = Depends(require_user),
     photos_per_page: str = Form(""),
     refresh_every: str = Form(""),
     refresh_unit: str = Form("hours"),
@@ -392,45 +421,20 @@ def update_global_settings(
 
 
 @app.post("/refresh-now")
-def refresh_now_all(admin: User = Depends(require_admin)):
+def refresh_now_all(user: User = Depends(require_user)):
     scheduler.run_all_now()
     return RedirectResponse("/settings", status_code=303)
 
 
-# --- usuarios (solo admin) -------------------------------------------------
-@app.post("/users")
-def create_user(
+# --- la cuenta (una sola desde la 1.1) -------------------------------------
+@app.post("/account")
+def update_account(
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
+    user: User = Depends(require_user),
     username: str = Form(""),
     password: str = Form(""),
 ):
-    services.create_user(db, username, password)
-    return RedirectResponse("/settings", status_code=303)
-
-
-@app.post("/users/{user_id}")
-def update_user(
-    user_id: int,
-    db: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
-    username: str = Form(""),
-    password: str = Form(""),
-):
-    target = db.get(User, user_id)
-    if target:
-        services.update_user(db, target, username, password)
-    return RedirectResponse("/settings", status_code=303)
-
-
-@app.post("/users/{user_id}/delete")
-def delete_user(
-    user_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)
-):
-    target = db.get(User, user_id)
-    # El admin no se puede borrar a sí mismo (ni a otro admin).
-    if target and not target.is_admin:
-        services.delete_user(db, target)
+    services.update_user(db, user, username, password)
     return RedirectResponse("/settings", status_code=303)
 
 

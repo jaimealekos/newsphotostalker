@@ -15,5 +15,8 @@ config.local.yaml
 .env
 *.local.yaml
 
+# Herramientas locales
+.claude/
+
 # OS
 .DS_Store

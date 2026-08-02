@@ -35,11 +35,14 @@ Funciona en **dos capas**:
 
 - 🔎 Búsquedas por **fotógrafo** o por **texto**, en las 4 agencias.
 - 🖼️ Galería por búsqueda con pie de foto, autor, crédito y fecha.
+- 🟢 **Luz de novedades por búsqueda**: se enciende cuando entran fotos y se apaga
+  al abrir *esa* búsqueda, con la fecha de la última novedad al lado.
+- ⇅ **Panel ordenable**: coloca las búsquedas a mano y agrúpalas con separadores.
 - ⏱️ **Refresco global** configurable (cada X horas/días, a partir de una hora),
   más ejecución manual de una búsqueda al momento.
 - ⤓ **Rellenar histórico**: descarga hacia atrás hasta el límite de retención.
 - 🗑️ **Retención** por tiempo (meses) o por espacio (MB), con purga automática.
-- 👥 **Multiusuario**: un admin gestiona usuarios; cada uno con sus búsquedas.
+- 🔒 **Un solo usuario**, con login y contraseña.
 - 🔔 Aviso opcional (webhook) cuando una agencia deja de funcionar.
 - 🖥️ Corre en **Windows** (a demanda, doble clic) o como **servidor 24/7** (Docker).
 
@@ -81,7 +84,7 @@ python -m scripts.seed                     # siembra las 3 búsquedas de ejemplo
 uvicorn app.main:app                        # http://127.0.0.1:8000
 ```
 
-Entra con **`admin` / `admin`** (cámbialo en *ajustes → usuarios*). En modo `mock`
+Entra con **`admin` / `admin`** (cámbialo en *ajustes → tu cuenta*). En modo `mock`
 las fotos son sintéticas, así que puedes probar TODO el sistema sin credenciales.
 Cuando quieras las de verdad, pon `mode: live` en `config.local.yaml`.
 
@@ -107,13 +110,14 @@ python -m scripts.login_reuters       # (o login_reuters.bat en Windows)
 
 Se abre una ventana de Chrome en la página de login; entras (email, contraseña y
 el deslizador si aparece) y la sesión queda guardada para las siguientes veces.
-**AP, Getty y AFP no necesitan login.**
+**Es la única vez que verás una ventana**: las ejecuciones normales van en
+headless y no abren nada. **AP, Getty y AFP no necesitan login.**
 
 ## ⚙️ Configuración
 
-Todo en `config.local.yaml` (gitignored). Lo esencial: `mode` (mock/live), las
-credenciales de Reuters, y `playwright.executable_path` (apunta a tu Google Chrome
-para la mejor compatibilidad con Reuters). Ver comentarios en
+Todo en `config.local.yaml` (gitignored). Lo esencial: `mode` (mock/live) y las
+credenciales de Reuters. `playwright.executable_path` puede quedarse en `null`: en
+Windows se usa solo el Google Chrome instalado. Ver comentarios en
 [`config.example.yaml`](config.example.yaml).
 
 El **refresco** (cada cuánto se revisan todas las búsquedas y a qué hora) y las
