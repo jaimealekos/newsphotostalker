@@ -204,6 +204,10 @@ table.ordering tbody tr.dragging td { background: var(--paper-3); }
 table.searches tr.row-sep td {
   background: transparent; padding-top: 22px; border-bottom: none;
 }
+/* Separador sin título: el rótulo (y su regla negra) no se pintan, pero la fila
+   recupera el filete de siempre, que es lo que le da borde superior al bloque
+   de abajo. Con título esa función ya la cumple la regla del propio rótulo. */
+table.searches tr.row-sep-blank td { border-bottom: 1px solid var(--rule); }
 tbody tr:first-child .sep-label, tbody tr:first-child .sep-input { margin-top: 0; }
 .sep-label {
   display: block; font: var(--cable); text-transform: uppercase;

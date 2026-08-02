@@ -34,7 +34,10 @@
 
     {% if row.kind == 'separator' %}
     {% set sep = row.separator %}
-    <tr class="row-sep" data-type="separator" data-id="{{ sep.id }}" {% if order_mode %}draggable="true"{% endif %}>
+    {# Sin título fuera del modo edición: solo aire, pero conservando el filete
+       de la fila, que es la barra que abre el bloque de abajo. #}
+    <tr class="row-sep{% if not order_mode and not sep.label %} row-sep-blank{% endif %}"
+        data-type="separator" data-id="{{ sep.id }}" {% if order_mode %}draggable="true"{% endif %}>
       {% if order_mode %}
       <td class="col-grip"><span class="grip" title="Arrastra para mover">⠿</span></td>
       <td colspan="4">
