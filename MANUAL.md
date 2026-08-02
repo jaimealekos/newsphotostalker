@@ -173,11 +173,13 @@ Consejos:
 Lo que se guarda es la **preview** que cada agencia deja descargar sin licencia, y
 no todas dan lo mismo:
 
-| Agencia | Preview guardada | Miniatura | Tope del servicio |
+Cada agencia baja **lo máximo que deja descargar**, y son cifras muy distintas:
+
+| Agencia | Preview guardada | Miniatura | Es su tope porque… |
 |---|---|---|---|
-| **Getty / AFP** | 2048 px (con marca de agua) | 612 px | 2048 |
-| **AP** | 1024 px (con marca de agua) | la misma | 1024 sin login |
-| **Reuters** | 640 px | la misma | 800 px, pero sale caro (ver abajo) |
+| **Getty / AFP** | 2048 px (con marca de agua) | 612 px | es el mayor comp que publica |
+| **AP** | 1024 px (con marca de agua) | la misma | la rendición `main` da 403 sin licencia |
+| **Reuters** | 640 px | la misma | no publica ninguna mayor accesible |
 
 Detalle de Getty: la URL del listado es de 612 px y su firma va **atada a ese
 tamaño** (pedir `s=2048x2048` sobre ella devuelve 400). El comp grande va firmado
@@ -185,19 +187,20 @@ aparte y solo aparece en la ficha de la foto, así que cada foto **nueva** cuest
 una petición extra; si esa petición falla, se guarda la de 612 de siempre en vez
 de perder la foto.
 
-Por qué AP y Reuters no suben: la rendición `main` de AP (la de 5000 px) responde
-403 sin licencia, y la URL de Reuters va firmada **incluyendo el tamaño**, así que
-pedirle 1024 o 2048 da 403. Reuters sí publica 800 px, pero solo en la ficha del
-ítem, que hay que abrir con el navegador: unos 10 s por foto para pasar de 640 a
-800. No compensa, así que se queda en 640.
+Por qué AP y Reuters no suben más, comprobado contra los servicios: la rendición
+`main` de AP (la de 5000 px) responde 403 sin licencia. Y la URL de Reuters lleva
+el tamaño en la propia ruta y va firmada **incluyendo ese tramo**, así que pedirle
+1024 o 2048 da 403; su ficha publica una ruta `/watermark/…/800x800`, pero va sin
+firmar y responde 403 hasta desde dentro de la propia página con la sesión abierta
+— la ficha misma no llega a mostrar más de 640.
 
 Ojo con la **retención por espacio**: una foto de Getty pasa de ~50 KB a ~1 MB, así
 que un límite en MB que antes daba para miles de fotos ahora da para muchas menos.
 
-En la ficha, todas las fotos se ven al mismo ancho (1024) para que unas no salgan
-de golpe más pequeñas que otras; **un clic** las lleva a su resolución real. Las de
-Getty descargadas antes de la 1.1 siguen siendo de 612 px y ahí van ampliadas — el
-pie de la imagen lo avisa.
+En la ficha, la foto se ve **a su resolución real y nunca ampliada**: si no cabe a
+lo ancho se reduce, y un clic la devuelve a tamaño nativo. Por eso una de Getty
+recién bajada (2048) se ve mayor que una de Reuters (640): es su tamaño de verdad,
+no un estirón.
 
 ## Tu cuenta
 

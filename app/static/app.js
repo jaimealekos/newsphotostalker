@@ -22,15 +22,16 @@
     var describe = function () {
       if (!hint || !photo.naturalWidth) return;
       var real = photo.naturalWidth + "×" + photo.naturalHeight + " px";
-      var full = photo.classList.contains("full");
-      if (full) {
-        hint.textContent = "A tamaño real, " + real + " · clic para volver";
-      } else if (photo.naturalWidth > photo.clientWidth) {
-        hint.textContent = "Guardada a " + real + " · clic para verla entera";
+      // Nunca se amplía: si la foto cabe entera, ya está a tamaño real y no hay
+      // nada que ofrecer. Solo cuando el ancho de la página la reduce tiene
+      // sentido el clic. El estado «ampliada» va primero: ahí el ancho coincide
+      // con el nativo y si no, no habría manera de saber cómo volver.
+      if (photo.classList.contains("full")) {
+        hint.textContent = real + " · a tamaño real, clic para ajustar al ancho";
+      } else if (photo.clientWidth >= photo.naturalWidth) {
+        hint.textContent = real;
       } else {
-        // Las de Getty anteriores a la 1.1 se guardaron a 612 y aquí van
-        // estiradas: se avisa de que la resolución real es menor.
-        hint.textContent = "Ampliada desde " + real + " · clic para verla a tamaño real";
+        hint.textContent = real + " · reducida para caber, clic para verla entera";
       }
     };
     photo.addEventListener("click", function () {

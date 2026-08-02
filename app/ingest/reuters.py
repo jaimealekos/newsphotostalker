@@ -22,13 +22,14 @@ so this adapter drives a headed, logged-in Chromium profile (see
 * Preview images live on cdn1.agency.thomsonreuters.com and require a
   reutersconnect.com Referer to download (handled by the base download()).
 
-Resolución (verificado 08-2026): la URL de la tarjeta lleva el tamaño en la
-RUTA (``/preview/<newsml>/<binary>/640x640?...``) y va firmada por CloudFront
-**incluyendo ese tramo**, así que pedir 1024 o 2048 sobre ella devuelve 403
-(AccessDenied). El único tamaño mayor que publica Reuters es **800x800**, con
-su propia firma, y solo aparece en la ficha del ítem (``/app/item/…``), que hay
-que abrir con el navegador: ~10 s por foto para ganar de 640 a 800. No compensa,
-así que se guarda la de 640 de la tarjeta.
+Resolución (verificado 08-2026): **640 es el máximo**, y no hay forma de subir.
+La URL de la tarjeta lleva el tamaño en la RUTA
+(``/preview/<newsml>/<binary>/640x640?...``) y la firma de CloudFront cubre ese
+tramo, así que pedirle 1024 o 2048 devuelve 403. La ficha del ítem publica una
+ruta ``/watermark/…/800x800``, pero va SIN firmar y responde 403 incluso desde
+dentro de la propia página con la sesión iniciada; las de 800 firmadas no
+existen, y la ficha misma solo llega a mostrar imágenes de 640. Por eso el
+adaptador no abre la ficha: sería tiempo perdido.
 
 Card overviews expose the *source agency*, not the individual byline, so for
 photographer searches the photographer is taken to be the query itself.
@@ -238,11 +239,10 @@ class ReutersAdapter(LiveAdapter):
         )
 
     def _bg_of(self, handle) -> str | None:
-        import re
-
         css = handle.evaluate("el => getComputedStyle(el).backgroundImage")
         m = re.search(r'url\(["\']?([^"\')]+)', css or "")
         return m.group(1) if m else None
+
 
 
 def _parse_reuters_date(text: str | None) -> datetime | None:

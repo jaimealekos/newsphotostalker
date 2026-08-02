@@ -87,6 +87,13 @@ def _humanize_dt(value: datetime | None) -> str:
 
 
 _MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+_DIAS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
+
+
+def _dateline() -> str:
+    """Fecha de la cabecera, al estilo del encabezado de un despacho."""
+    hoy = datetime.now()
+    return f"{_DIAS[hoy.weekday()]} {hoy.day} {_MESES[hoy.month - 1]} {hoy.year}"
 
 
 def _short_dt(value: datetime | None) -> str:
@@ -113,6 +120,7 @@ def _ctx(request: Request, **kwargs) -> dict:
         "agency_choices": services.AGENCY_CHOICES,
         "kind_choices": services.KIND_CHOICES,
         "retention_choices": services.RETENTION_CHOICES,
+        "hoy": _dateline(),
         "user": None,
     }
     base.update(kwargs)
