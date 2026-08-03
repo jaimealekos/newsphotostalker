@@ -1,10 +1,6 @@
-<h1 align="center">newsphotostalker</h1>
+<p align="right"><b>English</b> · <a href="README.es.md">Español</a></p>
 
-<p align="center">
-  Watch what other photographers are filing to <b>AP</b>, <b>Reuters</b>, <b>AFP</b>
-  and <b>Getty Images</b>.<br>
-  It checks for new work on its own, downloads it, and tells you what is new.
-</p>
+<h1 align="center">newsphotostalker</h1>
 
 <p align="center">
   <a href="../../releases"><b>Download</b></a> ·
@@ -14,6 +10,26 @@
 <p align="center">
   <img src="docs/screenshots/01-dashboard.png" alt="The panel: one row per search, a red flag where new photos came in" width="860">
 </p>
+
+---
+
+Watching the work of the photographers at the international press agencies — **AP,
+Reuters, AFP, Getty** — has long been one of the traditional ways to study the
+craft of photojournalism.
+
+On paper, on dedicated terminals, and on the web since the arrival of the
+Internet, many of us have tried to separate the wheat from the chaff: to learn
+from the best, and also to study where others fall short.
+
+It has always been a chore to keep a pile of saved searches and to lose time
+navigating the agencies' websites, which are not always cleanly designed and
+sometimes seem to get worse over time.
+
+**newsphotostalker** makes this as efficient as it gets: a single screen, the same
+for all four agencies; searches automated by photographer or keyword; arrange
+them, and refresh by hand or on a schedule.
+
+Free for **Windows, Mac and Linux**, under the MIT license.
 
 ---
 
@@ -150,6 +166,10 @@ Packages are built and smoke-tested for the three systems by
 compiles anything, neither you nor whoever downloads it.
 
 The full manual, in Spanish, is in [MANUAL.md](MANUAL.md).
+
+## License
+
+[MIT](LICENSE). Free to use, change and share.
 
 ---
 
