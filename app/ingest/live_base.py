@@ -26,38 +26,49 @@ from .base import BaseAdapter, DownloadedFiles, RawAsset
 
 _BG_URL_RE = re.compile(r'url\(["\']?([^"\')]+)')
 
-# En Windows, el chrome.exe que empaqueta Playwright no arranca en modo headed
-# en bastantes máquinas: falla por SxS ("la configuración en paralelo no es
-# correcta") y Playwright lo enmascara como un escueto ``spawn UNKNOWN``. El
-# headless sí va, pero Reuters lo necesita headed, así que sin Chrome real no
-# hay nada que hacer. Como el binario instalado además da una huella más creíble
-# para DataDome, se usa por defecto cuando no se ha configurado otro.
-_WINDOWS_CHROME_PATHS = (
-    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-    r"~\AppData\Local\Google\Chrome\Application\chrome.exe",
+# Navegadores del sistema que sirven, por orden de preferencia.
+#
+# Por qué no se usa el Chromium que empaqueta Playwright: en bastantes máquinas
+# Windows no arranca en modo headed —falla por SxS ("la configuración en paralelo
+# no es correcta") y Playwright lo enmascara como un escueto ``spawn UNKNOWN``—
+# y el login de Reuters necesita ventana. Además, un navegador instalado de
+# verdad da una huella más creíble para DataDome.
+#
+# Chrome primero por esa huella; Edge después porque VIENE DE SERIE en todo
+# Windows 10 y 11, así que el programa funciona sin instalar nada. Verificado en
+# agosto de 2026: Edge arranca con ventana y sin ella, y llega al formulario de
+# login de Reuters.
+_WINDOWS_BROWSERS = (
+    ("Google Chrome", r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+    ("Google Chrome", r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
+    ("Google Chrome", r"~\AppData\Local\Google\Chrome\Application\chrome.exe"),
+    ("Microsoft Edge", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+    ("Microsoft Edge", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
+    ("Microsoft Edge", r"~\AppData\Local\Microsoft\Edge\Application\msedge.exe"),
 )
 
 
-def _windows_chrome() -> str | None:
-    """Ruta del Chrome instalado en Windows (None en el resto de sistemas)."""
+def windows_browser() -> tuple[str, str] | None:
+    """(nombre, ruta) del navegador que se usará, o None si no hay ninguno.
+
+    Solo mira en Windows; en Linux/macOS manda ``playwright.executable_path``.
+    """
     if not sys.platform.startswith("win"):
         return None
-    for raw in _WINDOWS_CHROME_PATHS:
+    for nombre, raw in _WINDOWS_BROWSERS:
         path = Path(raw).expanduser()
         if path.exists():
-            return str(path)
+            return nombre, str(path)
     return None
 
 
 def _launch_hint(exc: Exception, executable: str | None) -> str:
     """Traduce el fallo de arranque a algo accionable en el panel."""
     detail = str(exc).splitlines()[0]
-    if "spawn UNKNOWN" in detail and not executable:
+    if not executable:
         return (
-            f"{detail} — el Chromium de Playwright no arranca headed en esta máquina "
-            "y no se ha encontrado Google Chrome instalado. Instálalo o apunta "
-            "playwright.executable_path a un Chrome/Chromium que sí arranque."
+            f"{detail} — no se ha encontrado ningún navegador utilizable. Instala "
+            "Google Chrome (o Microsoft Edge) y vuelve a intentarlo."
         )
     return detail
 
@@ -137,7 +148,10 @@ class LiveAdapter(BaseAdapter):
             timezone_id="Europe/Madrid",
             viewport={"width": 1440, "height": 900},
         )
-        executable = pw_conf.executable_path or _windows_chrome()
+        executable = pw_conf.executable_path
+        if not executable:
+            encontrado = windows_browser()
+            executable = encontrado[1] if encontrado else None
         if executable:
             launch["executable_path"] = executable
 

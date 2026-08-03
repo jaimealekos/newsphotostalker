@@ -396,9 +396,11 @@ def settings_page(
             "has_login": c.has_login if c else False,
             "username": (c.username if c else None),
         }
+    from .ingest.live_base import windows_browser
     from .ingest.reuters_login import STATUS as reuters_login_status
 
     perfil = settings.data_dir / "browser" / "reuters"
+    navegador = windows_browser()
     return templates.TemplateResponse(
         "settings.html",
         _ctx(
@@ -410,6 +412,8 @@ def settings_page(
             # sigue siendo válida: eso únicamente se sabe ejecutando.
             reuters_profile=perfil.exists(),
             reuters_login=reuters_login_status,
+            # Qué navegador conducirá Reuters (o None si no hay ninguno).
+            browser_name=navegador[0] if navegador else None,
             data_dir=str(settings.data_dir),
             user=user,
         ),

@@ -43,8 +43,11 @@ Windows no deja escribir ahí.
 Windows avisará de que no reconoce la aplicación, porque el ejecutable no va
 firmado: *Más información → Ejecutar de todas formas*.
 
-Para Reuters hace falta **Google Chrome** instalado y entrar una vez desde
+No hay que instalar nada más: Python y Playwright viajan dentro. Para Reuters se
+usa un navegador del sistema — el **Google Chrome** que tengas o, si no lo tienes,
+el **Microsoft Edge que ya trae Windows** — y hay que entrar una vez desde
 *ajustes → iniciar sesión en Reuters* (ver [Reuters: el login](#reuters-el-login)).
+En esa misma pantalla se ve cuál va a usar.
 
 ### Desde el código
 

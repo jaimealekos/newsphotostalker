@@ -86,14 +86,17 @@
     ninguna ventana. Si algún día caduca, vuelve a pulsar el botón.
   </p>
   <p class="muted small">
-    Perfil del navegador: <strong>{{ "guardado" if reuters_profile else "todavía no hay" }}</strong>.
+    Navegador: <strong>{{ browser_name or "ninguno encontrado" }}</strong>{% if not browser_name %}
+    — instala <a href="https://www.google.com/chrome/" target="_blank" rel="noopener">Google Chrome</a>
+    (o Microsoft Edge) para poder usar Reuters{% endif %}.
+    Perfil guardado: <strong>{{ "sí" if reuters_profile else "todavía no" }}</strong>.
     {% if reuters_login.updated_at %}
-    Último intento: <strong>{{ reuters_login.message }}</strong> ({{ reuters_login.updated_at|humanize }}).
+    <br>Último intento: <strong>{{ reuters_login.message }}</strong> ({{ reuters_login.updated_at|humanize }}).
     {% endif %}
   </p>
   <form method="post" action="/reuters/login" class="inline">
     <button class="btn {{ 'btn-ghost' if reuters_profile else 'btn-primary' }}"
-            {% if reuters_login.running %}disabled{% endif %}>
+            {% if reuters_login.running or not browser_name %}disabled{% endif %}>
       {{ "esperando a que entres…" if reuters_login.running else "iniciar sesión en Reuters" }}
     </button>
   </form>

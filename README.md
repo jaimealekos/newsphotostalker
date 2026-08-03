@@ -85,15 +85,16 @@ y una carpeta **`data/`** con la base de datos, las fotos y la sesión del
 navegador. **Todo lo tuyo está ahí**: para mudarte de ordenador o hacer copia de
 seguridad, copia esa carpeta.
 
+No hay que instalar nada más: Python, Playwright y todo lo demás viajan dentro.
 Dos cosas que conviene saber:
 
 - **Windows te dirá que no reconoce la aplicación.** El ejecutable no está
   firmado (una firma cuesta dinero). *Más información → Ejecutar de todas formas*.
-- **Para Reuters necesitas [Google Chrome](https://www.google.com/chrome/)
-  instalado**, y entrar una vez desde *ajustes → iniciar sesión en Reuters*: se
-  abre una ventana, inicias sesión ahí y se guarda. **Es la única ventana que
-  verás**: a partir de ahí las búsquedas corren sin abrir nada. AP, Getty y AFP
-  no necesitan cuenta.
+- **Reuters** pide entrar una vez desde *ajustes → iniciar sesión en Reuters*: se
+  abre una ventana del navegador, inicias sesión ahí y se guarda. **Es la única
+  ventana que verás**; a partir de ahí las búsquedas corren sin abrir nada. Usa
+  el Chrome que tengas o, si no lo tienes, el **Edge que ya trae Windows**. AP,
+  Getty y AFP no necesitan cuenta.
 
 ### Desde el código
 
@@ -117,12 +118,17 @@ Cuando quieras las de verdad, pon `mode: live` en `config.local.yaml`.
 
 En Windows también vale el doble clic en **`arrancar_servidor.bat`**.
 
-### Generar el .zip de Windows
+### Publicar una versión
+
+No hay que compilar a mano: al empujar una etiqueta, GitHub compila en Windows,
+comprueba que el ejecutable arranca y cuelga el `.zip` de la release.
 
 ```bash
-pip install pyinstaller
-python build.py        # deja la carpeta y el zip en dist/
+git tag v1.1.0 && git push origin v1.1.0
 ```
+
+Ver [`.github/workflows/release.yml`](.github/workflows/release.yml). Para
+compilarlo en tu máquina, `pip install pyinstaller` y `python build.py`.
 
 Se compila en **onedir** (una carpeta, no un fichero único): arranca antes,
 Playwright —que arrastra un Node y su driver— se empaqueta sin sobresaltos, y

@@ -70,6 +70,7 @@ exe = EXE(
     # CON consola, y es deliberado: la ventana ES el programa. Ahí se ve el log
     # y cerrarla detiene el servidor, sin necesidad de icono de bandeja.
     console=True,
+    icon="assets/newsphotostalker.ico",
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

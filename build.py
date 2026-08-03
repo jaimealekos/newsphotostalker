@@ -74,13 +74,23 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--salida", default=str(RAIZ / "dist"), help="carpeta de salida")
     parser.add_argument("--trabajo", default=str(RAIZ / "build"), help="carpeta temporal")
-    parser.add_argument("--sin-zip", action="store_true", help="no comprimir el resultado")
+    parser.add_argument("--sin-zip", action="store_true", help="compilar sin comprimir")
+    parser.add_argument(
+        "--solo-zip",
+        action="store_true",
+        help="comprimir una carpeta ya compilada, sin volver a compilar",
+    )
     args = parser.parse_args()
 
     salida = Path(args.salida).resolve()
-    shutil.rmtree(salida / NOMBRE, ignore_errors=True)
-    carpeta = compilar(salida, Path(args.trabajo).resolve())
-    print(f"\ncarpeta: {carpeta}  ({tamano(carpeta)})")
+    carpeta = salida / NOMBRE
+    if args.solo_zip:
+        if not carpeta.exists():
+            raise SystemExit(f"no existe {carpeta}; compila primero")
+    else:
+        shutil.rmtree(carpeta, ignore_errors=True)
+        carpeta = compilar(salida, Path(args.trabajo).resolve())
+        print(f"\ncarpeta: {carpeta}  ({tamano(carpeta)})")
     if not args.sin_zip:
         zip_final = comprimir(carpeta)
         print(f"zip:     {zip_final}  ({tamano(zip_final)})")
