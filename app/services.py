@@ -249,6 +249,9 @@ class SearchStats:
     # búsqueda da ``has_new``: la luz es de cada búsqueda, no del panel entero.
     last_added: datetime | None = None
     has_new: bool = False
+    # Hay una ejecución en curso ahora mismo (RunLog abierto): el panel muestra
+    # un indicador en movimiento en esa fila.
+    is_running: bool = False
 
     @property
     def total_mb(self) -> float:
@@ -284,6 +287,27 @@ def _aware(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
+def running_search_ids(session: Session, user_id: int) -> set[int]:
+    """Búsquedas del usuario con una ejecución abierta ahora mismo.
+
+    El runner deja un ``RunLog`` en estado ``running`` (sin ``finished_at``)
+    mientras trabaja, y lo cierra al acabar. Se acota a las últimas horas por si
+    un proceso muere sin cerrar el registro (el arranque además los sanea)."""
+    from datetime import timedelta
+
+    horizonte = utcnow() - timedelta(hours=2)
+    mine = select(Search.id).where(Search.user_id == user_id)
+    filas = session.execute(
+        select(RunLog.search_id).where(
+            RunLog.search_id.in_(mine),
+            RunLog.status == "running",
+            RunLog.finished_at.is_(None),
+            RunLog.started_at > horizonte,
+        )
+    ).all()
+    return {f[0] for f in filas}
+
+
 def all_search_stats(session: Session, user_id: int) -> list[SearchStats]:
     searches = list(
         session.scalars(
@@ -292,7 +316,13 @@ def all_search_stats(session: Session, user_id: int) -> list[SearchStats]:
             .order_by(Search.position, Search.agency, Search.name)
         )
     )
-    return [search_stats(session, s) for s in searches]
+    corriendo = running_search_ids(session, user_id)
+    resultado = []
+    for s in searches:
+        st = search_stats(session, s)
+        st.is_running = s.id in corriendo
+        resultado.append(st)
+    return resultado
 
 
 @dataclass

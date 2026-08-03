@@ -77,6 +77,18 @@ def _bootstrap() -> None:
     with session_scope() as session:
         _migrate_searches(session)
 
+        # Al arrancar no hay ninguna ejecución en curso, así que cualquier RunLog
+        # que quedara en "running" es de un cierre a medias: se marca terminado
+        # para que el panel no muestre un indicador de trabajo eterno.
+        session.execute(
+            text(
+                "UPDATE run_logs SET status='error', finished_at=:now, "
+                "message=COALESCE(message,'')||' (interrumpido)' "
+                "WHERE status='running' AND finished_at IS NULL"
+            ),
+            {"now": datetime.now(timezone.utc)},
+        )
+
         # Fila única de ajustes globales (refresco + fotos por página).
         if session.get(AppSettings, 1) is None:
             session.add(AppSettings(id=1))

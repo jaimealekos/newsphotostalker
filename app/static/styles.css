@@ -169,6 +169,19 @@ table.searches .num { text-align: right; font-variant-numeric: tabular-nums; }
 .dot-running { background: var(--rule-2); }
 .dot-none { background: transparent; box-shadow: inset 0 0 0 1px var(--rule-2); }
 .paused { color: var(--muted); font-size: 11px; margin-left: 1px; cursor: default; }
+/* Búsqueda trabajando: un punto braille que gira, a juego con el asa ⠿ del modo
+   edición. Discreto (tinta suave) y en la escala del punto de estado. Ocupa el
+   mismo hueco que el punto para que la fila no salte. */
+.working { display: inline-block; width: 7px; margin-right: 7px; color: var(--ink-2);
+  font: 12px/1 var(--mono); vertical-align: baseline; }
+.working::before { content: "\2807"; animation: girar 0.9s steps(8) infinite; }
+@keyframes girar {
+  0%   { content: "\2807"; }  12.5% { content: "\280B"; }
+  25%  { content: "\2819"; }  37.5% { content: "\2838"; }
+  50%  { content: "\2834"; }  62.5% { content: "\2826"; }
+  75%  { content: "\2827"; }  87.5% { content: "\2807"; }
+}
+@media (prefers-reduced-motion: reduce) { .working::before { animation: none; } }
 .col-fresh { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }
 .fresh { color: var(--flag); cursor: help; }
 

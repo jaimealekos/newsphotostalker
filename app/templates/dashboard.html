@@ -122,8 +122,12 @@
       <td class="col-grip"><span class="grip" title="Arrastra para mover">⠿</span></td>
       {% endif %}
       <td>
+        {% if st.is_running %}
+        <span class="working" title="buscando novedades…" aria-label="buscando"></span>
+        {% else %}
         <span class="dot {{ 'dot-new' if st.has_new else 'dot-idle' }}"
               title="{{ 'novedades desde tu última visita' if st.has_new else 'sin novedades' }}"></span>
+        {% endif %}
         {%- if not s.enabled %}<span class="paused" title="búsqueda pausada">&#9208;&#65038;</span>{% endif %}
       </td>
       <td class="col-search">
