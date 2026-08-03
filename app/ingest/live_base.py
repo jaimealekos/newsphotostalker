@@ -151,6 +151,36 @@ def _launch_hint(exc: Exception, executable: str | None) -> str:
     return detail
 
 
+def _limpia_locks(profile_dir: Path) -> None:
+    """Borra los locks de instancia única que deja un Chromium mal cerrado.
+
+    Un crash o un cierre a medias deja ``SingletonLock`` y compañía en el perfil,
+    y el siguiente arranque aborta con «Failed to create a ProcessSingleton».
+    Aquí, con los runs serializados, solo pueden ser huérfanos.
+    """
+    for name in ("SingletonLock", "SingletonSocket", "SingletonCookie"):
+        try:
+            (profile_dir / name).unlink()
+        except OSError:
+            pass
+
+
+def _perfil_ocupado(exc: Exception) -> bool:
+    """¿El fallo de arranque es por el perfil aún tomado (no por falta de navegador)?"""
+    m = str(exc).lower()
+    return any(
+        s in m
+        for s in (
+            "has been closed",
+            "target page",
+            "processsingleton",
+            "failed to create",
+            "singletonlock",
+            "profiledir",
+        )
+    )
+
+
 class LiveAdapterError(RuntimeError):
     pass
 
@@ -182,16 +212,6 @@ class LiveAdapter(BaseAdapter):
             user_data = (self.settings.data_dir / "browser").resolve()
         profile_dir = user_data / self.agency
         profile_dir.mkdir(parents=True, exist_ok=True)
-        # Un crash o reinicio del contenedor deja el lock de instancia única de
-        # Chromium en el perfil y todos los arranques posteriores abortan
-        # ("Failed to create a ProcessSingleton"). Los runs están serializados
-        # (runner._RUN_LOCK), así que aquí nunca hay otro Chromium legítimo
-        # sobre este perfil y el lock solo puede ser huérfano.
-        for name in ("SingletonLock", "SingletonSocket", "SingletonCookie"):
-            try:
-                (profile_dir / name).unlink()
-            except OSError:
-                pass
 
         # Huella: NADA de user-agent falso ni parches JS "stealth". DataDome
         # coteja UA vs navigator.platform vs client hints: un UA de Windows
@@ -234,15 +254,35 @@ class LiveAdapter(BaseAdapter):
             launch["executable_path"] = executable
 
         self._pw = sync_playwright().start()
-        try:
-            self._context = self._pw.chromium.launch_persistent_context(**launch)
-        except Exception as exc:  # noqa: BLE001 - el motivo real merece explicarse
-            raise LiveAdapterError(_launch_hint(exc, executable)) from exc
+        self._context = self._lanzar(launch, profile_dir, executable)
         self._context.set_default_timeout(pw_conf.timeout_ms)
         self._page = self._context.new_page()
 
         if self.requires_login:
             self._ensure_login()
+
+    def _lanzar(self, launch: dict, profile_dir: Path, executable: str | None):
+        """Abre el contexto persistente, reintentando ante una carrera de perfil.
+
+        Chromium solo admite UN proceso por ``user-data-dir``. Aunque los runs
+        van serializados (runner._RUN_LOCK), el Chromium del run anterior tarda
+        un poco en morir tras ``close()``, y si el siguiente arranca antes de que
+        suelte el perfil, un Chrome/Edge real reenvía al que agoniza y se cierra
+        —«Target page, context or browser has been closed»— en vez de arrancar.
+        Se reintenta dándole ese margen. Un fallo que NO es de perfil (no hay
+        navegador, binario que no arranca) se relanza al momento, sin esperas.
+        """
+        ultimo: Exception | None = None
+        for intento in range(4):
+            _limpia_locks(profile_dir)
+            try:
+                return self._pw.chromium.launch_persistent_context(**launch)
+            except Exception as exc:  # noqa: BLE001 - se clasifica justo abajo
+                ultimo = exc
+                if not _perfil_ocupado(exc) or intento == 3:
+                    raise LiveAdapterError(_launch_hint(exc, executable)) from exc
+                time.sleep(2)  # que el Chromium anterior suelte el perfil
+        raise LiveAdapterError(_launch_hint(ultimo, executable))  # inalcanzable
 
     def close(self) -> None:
         try:
