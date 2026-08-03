@@ -27,7 +27,7 @@ from pathlib import Path
 from .base import BaseAdapter, DownloadedFiles, RawAsset
 
 
-def en_hilo_sin_bucle(funcion, *args, **kwargs):
+def en_hilo_sin_bucle(funcion, *args, timeout_s: float | None = None, **kwargs):
     """Ejecuta algo en un hilo recién creado y devuelve su resultado.
 
     Playwright tiene dos API, una de bloqueo y otra asíncrona, y la de bloqueo
@@ -39,6 +39,11 @@ def en_hilo_sin_bucle(funcion, *args, **kwargs):
     Un hilo nuevo nunca tiene bucle, así que envolviendo aquí el trabajo la
     situación deja de poder darse, venga la llamada de donde venga. Las
     excepciones se reenvían al hilo que llamó, para no tragarse ningún error.
+
+    ``timeout_s`` es una red de seguridad: si el trabajo no termina en ese tiempo
+    se lanza ``TimeoutError`` en vez de esperar para siempre. El hilo es *daemon*,
+    así que un cuelgue no impide cerrar el programa, y el navegador que quede
+    colgado lo cierra el siguiente arranque (``matar_navegadores_del_perfil``).
     """
     buzon: queue.Queue = queue.Queue(maxsize=1)
 
@@ -50,7 +55,9 @@ def en_hilo_sin_bucle(funcion, *args, **kwargs):
 
     hilo = threading.Thread(target=_corre, name="playwright", daemon=True)
     hilo.start()
-    hilo.join()
+    hilo.join(timeout_s)
+    if hilo.is_alive():
+        raise TimeoutError("la operación del navegador no terminó a tiempo")
     estado, valor = buzon.get()
     if estado == "error":
         raise valor
@@ -163,6 +170,38 @@ def _limpia_locks(profile_dir: Path) -> None:
             (profile_dir / name).unlink()
         except OSError:
             pass
+
+
+def matar_navegadores_del_perfil(profile_dir: Path) -> int:
+    """Cierra CUALQUIER navegador que tenga tomado este perfil, y devuelve cuántos.
+
+    El login abre un Chrome/Edge NORMAL sobre el perfil, y ese Chrome suele
+    seguir vivo tras cerrar la ventana (se relanza a sí mismo, o queda en la
+    bandeja del sistema), reteniendo el perfil. Cerrar por el identificador del
+    proceso que lanzamos no basta. Aquí se cierran todos los procesos cuya línea
+    de órdenes apunta a ESTE perfil —solo este, nunca el Chrome de siempre del
+    usuario, que usa otro ``user-data-dir``—.
+
+    Debe llamarse con el perfil en exclusiva (bajo runner._RUN_LOCK): si no,
+    mataría el navegador de una búsqueda legítima en curso.
+    """
+    try:
+        import psutil
+    except ImportError:
+        return 0
+    marca = str(profile_dir.resolve()).lower()
+    matados = 0
+    for proc in psutil.process_iter(["cmdline"]):
+        try:
+            cmdline = " ".join(proc.info.get("cmdline") or []).lower()
+            if "--user-data-dir" in cmdline and marca in cmdline:
+                proc.kill()
+                matados += 1
+        except (psutil.NoSuchProcess, psutil.AccessDenied, Exception):  # noqa: BLE001
+            continue
+    if matados:
+        time.sleep(1.5)  # que el SO suelte el perfil antes de reabrirlo
+    return matados
 
 
 def _perfil_ocupado(exc: Exception) -> bool:
@@ -281,7 +320,11 @@ class LiveAdapter(BaseAdapter):
                 ultimo = exc
                 if not _perfil_ocupado(exc) or intento == 3:
                     raise LiveAdapterError(_launch_hint(exc, executable)) from exc
-                time.sleep(2)  # que el Chromium anterior suelte el perfil
+                # El perfil está tomado por otro navegador (típico: el Chrome del
+                # login, que sigue vivo). Se corre bajo el lock, así que ese otro
+                # navegador es ilegítimo: se cierra y se reintenta.
+                matar_navegadores_del_perfil(profile_dir)
+                time.sleep(2)
         raise LiveAdapterError(_launch_hint(ultimo, executable))  # inalcanzable
 
     def close(self) -> None:

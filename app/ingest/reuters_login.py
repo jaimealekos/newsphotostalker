@@ -136,19 +136,24 @@ def start_login() -> str:
 
 def finish_login() -> str:
     """Paso 2: cierra el navegador del login y comprueba si la sesión quedó."""
-    from .live_base import _limpia_locks, en_hilo_sin_bucle
+    from .live_base import _limpia_locks, en_hilo_sin_bucle, matar_navegadores_del_perfil
     from .runner import _RUN_LOCK
 
     settings = get_settings()
     profile = _profile_dir(settings)
 
     STATUS.set("checking", "comprobando la sesión…")
-    _cierra_navegador()  # el navegador del login suelta el perfil
+    # Primero el lock (así ninguna búsqueda usa el perfil), y SOLO entonces se
+    # cierra el navegador del login: se hace bajo el lock para no matar por error
+    # el navegador de una búsqueda legítima.
     if not _RUN_LOCK.acquire(timeout=LOCK_WAIT_SECONDS):
         return _fail("hay una búsqueda en marcha; inténtalo en un minuto")
     try:
+        _cierra_navegador()  # el que lanzamos, por su identificador
+        matar_navegadores_del_perfil(profile)  # y cualquiera que aún tenga el perfil
         _limpia_locks(profile)
-        ok = en_hilo_sin_bucle(_sesion_valida, settings)
+        # timeout como red de seguridad: la comprobación no puede colgar el lock.
+        ok = en_hilo_sin_bucle(_sesion_valida, settings, timeout_s=90)
     except Exception as exc:  # noqa: BLE001 - el botón nunca debe tumbar el servidor
         return _fail(f"{type(exc).__name__}: {exc}")
     finally:

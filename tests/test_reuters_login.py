@@ -47,3 +47,37 @@ def test_cerrar_sin_navegador_no_falla():
     with rl._PROC_LOCK:
         rl._PROC = None
     rl._cierra_navegador()  # no debe lanzar
+
+
+def test_matar_navegadores_solo_toca_el_perfil_indicado(monkeypatch, tmp_path):
+    """Nunca debe cerrar el Chrome de siempre del usuario (otro user-data-dir)."""
+    import psutil
+
+    from app.ingest import live_base
+
+    nuestro = tmp_path / "reuters"
+    nuestro.mkdir()
+    otro = tmp_path / "otro-perfil"
+
+    matados: list[list[str]] = []
+
+    class _Proc:
+        def __init__(self, cmdline):
+            self.info = {"cmdline": cmdline}
+
+        def kill(self):
+            matados.append(self.info["cmdline"])
+
+    procesos = [
+        _Proc(["chrome", f"--user-data-dir={nuestro}", "about:blank"]),  # nuestro → matar
+        _Proc(["chrome", f"--user-data-dir={otro}", "x"]),               # otro perfil → respetar
+        _Proc(["chrome", "https://web"]),                                # sin perfil → respetar
+        _Proc(None),                                                     # sin cmdline → respetar
+    ]
+    monkeypatch.setattr(psutil, "process_iter", lambda attrs=None: iter(procesos))
+    monkeypatch.setattr(live_base.time, "sleep", lambda *_: None)
+
+    n = live_base.matar_navegadores_del_perfil(nuestro)
+    assert n == 1
+    assert len(matados) == 1
+    assert str(nuestro).lower() in " ".join(matados[0]).lower()

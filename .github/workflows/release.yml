@@ -92,7 +92,7 @@ jobs:
         # verifica en macOS y Linux, con la misma versión de Playwright.
         run: |
           cd dist/newsphotostalker
-          ./python/python.exe -c "import sys; sys.path.insert(0,'.'); import playwright; from app.ingest.live_base import system_browser; b=system_browser(); print('navegador:', b); assert b, 'el runner no expone ningun navegador'"
+          ./python/python.exe -c "import sys; sys.path.insert(0,'.'); import playwright, psutil; from app.ingest.live_base import system_browser; b=system_browser(); print('navegador:', b, '| psutil', psutil.__version__); assert b, 'el runner no expone ningun navegador'"
 
       - name: Comprobar que arranca (macOS y Linux)
         if: runner.os != 'Windows'
