@@ -38,37 +38,83 @@ _BG_URL_RE = re.compile(r'url\(["\']?([^"\')]+)')
 # Windows 10 y 11, así que el programa funciona sin instalar nada. Verificado en
 # agosto de 2026: Edge arranca con ventana y sin ella, y llega al formulario de
 # login de Reuters.
-_WINDOWS_BROWSERS = (
-    ("Google Chrome", r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
-    ("Google Chrome", r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
-    ("Google Chrome", r"~\AppData\Local\Google\Chrome\Application\chrome.exe"),
-    ("Microsoft Edge", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
-    ("Microsoft Edge", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
-    ("Microsoft Edge", r"~\AppData\Local\Microsoft\Edge\Application\msedge.exe"),
-)
+_BROWSERS: dict[str, tuple[tuple[str, str], ...]] = {
+    "win32": (
+        ("Google Chrome", r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+        ("Google Chrome", r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
+        ("Google Chrome", r"~\AppData\Local\Google\Chrome\Application\chrome.exe"),
+        ("Microsoft Edge", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+        ("Microsoft Edge", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
+        ("Microsoft Edge", r"~\AppData\Local\Microsoft\Edge\Application\msedge.exe"),
+    ),
+    # macOS: Safari no vale (no es Chromium). Se buscan los habituales, también
+    # en ~/Applications, donde acaban los que instala el usuario sin permisos.
+    "darwin": (
+        ("Google Chrome", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+        ("Google Chrome", "~/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+        ("Microsoft Edge", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"),
+        ("Brave", "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"),
+        ("Chromium", "/Applications/Chromium.app/Contents/MacOS/Chromium"),
+    ),
+    "linux": (
+        ("Google Chrome", "/usr/bin/google-chrome"),
+        ("Google Chrome", "/usr/bin/google-chrome-stable"),
+        ("Google Chrome", "/opt/google/chrome/chrome"),
+        ("Chromium", "/usr/bin/chromium"),
+        ("Chromium", "/usr/bin/chromium-browser"),
+        ("Chromium", "/snap/bin/chromium"),
+        ("Microsoft Edge", "/usr/bin/microsoft-edge"),
+    ),
+}
 
 
-def windows_browser() -> tuple[str, str] | None:
-    """(nombre, ruta) del navegador que se usará, o None si no hay ninguno.
+def system_browser() -> tuple[str, str] | None:
+    """(nombre, ruta) del navegador instalado que se usará, o None si no hay.
 
-    Solo mira en Windows; en Linux/macOS manda ``playwright.executable_path``.
+    Devolver None NO es fatal fuera de Windows: Playwright tira entonces de su
+    propio Chromium, que en macOS y Linux sí arranca con ventana (el fallo SxS
+    es exclusivo de Windows). Por eso en Windows se busca con más empeño: allí
+    tiene que haber un navegador de verdad, y siempre lo hay porque Edge viene
+    de serie.
     """
-    if not sys.platform.startswith("win"):
-        return None
-    for nombre, raw in _WINDOWS_BROWSERS:
+    for nombre, raw in _BROWSERS.get(_familia(), ()):
         path = Path(raw).expanduser()
         if path.exists():
             return nombre, str(path)
     return None
 
 
+def _familia() -> str:
+    if sys.platform.startswith("win"):
+        return "win32"
+    if sys.platform == "darwin":
+        return "darwin"
+    return "linux"
+
+
+def browser_summary() -> str:
+    """Qué navegador se usará, en una línea, para contarlo en el panel."""
+    encontrado = system_browser()
+    if encontrado:
+        return encontrado[0]
+    if _familia() == "win32":
+        return ""  # en Windows, sin navegador no hay nada que hacer
+    return "Chromium (incluido)"
+
+
 def _launch_hint(exc: Exception, executable: str | None) -> str:
     """Traduce el fallo de arranque a algo accionable en el panel."""
     detail = str(exc).splitlines()[0]
-    if not executable:
+    if not executable and _familia() == "win32":
         return (
             f"{detail} — no se ha encontrado ningún navegador utilizable. Instala "
             "Google Chrome (o Microsoft Edge) y vuelve a intentarlo."
+        )
+    if not executable:
+        return (
+            f"{detail} — no hay navegador del sistema y el Chromium incluido no ha "
+            "arrancado. En un servidor sin pantalla, arráncalo bajo xvfb-run, o "
+            "trae la sesión ya iniciada desde otro equipo (ajustes → importar sesión)."
         )
     return detail
 
@@ -150,7 +196,7 @@ class LiveAdapter(BaseAdapter):
         )
         executable = pw_conf.executable_path
         if not executable:
-            encontrado = windows_browser()
+            encontrado = system_browser()
             executable = encontrado[1] if encontrado else None
         if executable:
             launch["executable_path"] = executable

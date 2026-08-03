@@ -11,6 +11,7 @@ crea en la carpeta ``data/`` junto al ejecutable.
 
 from __future__ import annotations
 
+import argparse
 import logging
 import socket
 import sys
@@ -59,7 +60,27 @@ def open_browser_when_ready(url: str, host: str, port: int, timeout: float = 25.
         pass
 
 
-def main() -> int:
+def parse_args(argv: list[str] | None = None):
+    """Opciones de consola. En un servidor no hay navegador que abrir ni tiene
+    por qué escuchar solo en local, así que ambas cosas se pueden cambiar."""
+    parser = argparse.ArgumentParser(
+        prog="newsphotostalker",
+        description="Vigila el trabajo de otros fotógrafos en AP, Reuters, AFP y Getty.",
+    )
+    parser.add_argument("--host", default=HOST, help=f"dirección de escucha (por defecto {HOST})")
+    parser.add_argument(
+        "--port", type=int, default=None,
+        help=f"puerto fijo; si no, el primero libre desde el {PREFERRED_PORT}",
+    )
+    parser.add_argument(
+        "--sin-navegador", action="store_true",
+        help="no abrir el navegador al arrancar (servidores sin pantalla)",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s  %(levelname)-7s %(name)s: %(message)s",
@@ -76,8 +97,9 @@ def main() -> int:
     from app.main import app as panel
 
     settings = get_settings()
-    port = find_free_port()
-    url = f"http://{HOST}:{port}"
+    port = args.port or find_free_port(args.host)
+    visible = "127.0.0.1" if args.host in ("0.0.0.0", "::") else args.host
+    url = f"http://{visible}:{port}"
 
     print()
     print("  newsphotostalker")
@@ -88,12 +110,13 @@ def main() -> int:
     print("  Deja esta ventana abierta: al cerrarla se detiene el programa.")
     print()
 
-    threading.Thread(
-        target=open_browser_when_ready, args=(url, HOST, port), daemon=True
-    ).start()
+    if not args.sin_navegador:
+        threading.Thread(
+            target=open_browser_when_ready, args=(url, visible, port), daemon=True
+        ).start()
 
     try:
-        uvicorn.run(panel, host=HOST, port=port, log_level="info")
+        uvicorn.run(panel, host=args.host, port=port, log_level="info")
     except KeyboardInterrupt:
         pass
     return 0

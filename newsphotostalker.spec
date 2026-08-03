@@ -16,10 +16,31 @@ fotos, su base de datos y su config.local.yaml se crean AL LADO del .exe.
     python -m PyInstaller newsphotostalker.spec --noconfirm
 """
 
+import os
+import sys
+from pathlib import Path
+
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 # Playwright: hay que llevarse el paquete entero, con su driver (node + JS).
 pw_datas, pw_binaries, pw_hidden = collect_all("playwright")
+
+# Y, fuera de Windows, también su Chromium si está descargado.
+#
+# En Windows no hace falta: siempre hay Edge de serie, y el Chromium de
+# Playwright además no arranca headed allí. En macOS y Linux puede no haber
+# ningún navegador instalado, así que se mete dentro para que el programa
+# funcione nada más descargarlo. El arranque lo encuentra porque
+# app/config.py apunta PLAYWRIGHT_BROWSERS_PATH al propio paquete.
+BROWSERS_DIR = {
+    "darwin": Path.home() / "Library" / "Caches" / "ms-playwright",
+    "linux": Path.home() / ".cache" / "ms-playwright",
+}.get(sys.platform if sys.platform != "win32" else "", None)
+
+if BROWSERS_DIR and BROWSERS_DIR.is_dir() and not os.environ.get("NPS_SIN_CHROMIUM"):
+    for hijo in BROWSERS_DIR.iterdir():
+        if hijo.is_dir() and hijo.name.startswith("chromium"):
+            pw_datas.append((str(hijo), f"ms-playwright/{hijo.name}"))
 
 hiddenimports = [
     *pw_hidden,

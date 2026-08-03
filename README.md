@@ -1,194 +1,138 @@
-# 📸 newsphotostalker
-
-> Vigila las novedades de **fotógrafos** y **temas** en **Associated Press,
-> Reuters, AFP y Getty Images** desde un panel web. Busca periódicamente, descarga
-> las fotos nuevas con sus metadatos y aplica límites de almacenamiento.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+<h1 align="center">newsphotostalker</h1>
 
 <p align="center">
-  <img src="docs/screenshots/03-getty.png" alt="Vista de una búsqueda en newsphotostalker" width="820">
+  Watch what other photographers are filing to <b>AP</b>, <b>Reuters</b>, <b>AFP</b>
+  and <b>Getty Images</b>.<br>
+  It checks for new work on its own, downloads it, and tells you what is new.
+</p>
+
+<p align="center">
+  <a href="../../releases"><b>Download</b></a> ·
+  <a href="MANUAL.md">Manual (Spanish)</a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/01-dashboard.png" alt="The panel: one row per search, a red flag where new photos came in" width="860">
 </p>
 
 ---
 
-## ¿Qué hace?
+## What it does
 
-Le dices qué fotógrafos o qué temas quieres seguir en las grandes agencias, y
-newsphotostalker lo revisa solo cada cierto tiempo, descarga lo nuevo y lo
-organiza en una galería. Ideal para no perderte el trabajo de un fotógrafo o la
-cobertura de un tema.
+You give it a **photographer's name** or a **text query** on any of the four
+agencies. It searches on a schedule, downloads whatever is new, and keeps it on
+your disk with captions, bylines, credits and dates.
 
-Funciona en **dos capas**:
+- 🔴 **A flag per search** when new photos arrive, with the date of the latest
+  one. It goes out when you open *that* search — not when you glance at the panel.
+- ⇅ **Arrange the panel** by hand and group searches with separators.
+- ⤓ **Backfill**: pull the archive backwards, as far as your retention allows.
+- 🗑️ **Retention** by time (months) or by disk space (MB), purged automatically.
+- 🖥️ Runs on **Windows, macOS and Linux**. Nothing to install.
 
-1. **Ingesta** — cada búsqueda se ejecuta según una cadencia y baja las novedades
-   respecto de la última vez. Tres caminos según la agencia:
-   - **AP** — API de búsqueda anónima (sin login).
-   - **Getty / AFP** — páginas de búsqueda por HTTP (sin login; AFP se restringe a su colección).
-   - **Reuters** — navegador con tu sesión iniciada (login humano; ver más abajo).
-2. **Panel web** — añadir, editar, pausar, borrar y ejecutar búsquedas al instante,
-   con pestañas de **actividad** (historial) y **ajustes**, galería paginada por
-   búsqueda y **relleno de histórico** bajo demanda.
+---
 
-## ✨ Características
+## Install
 
-- 🔎 Búsquedas por **fotógrafo** o por **texto**, en las 4 agencias.
-- 🖼️ Galería por búsqueda con pie de foto, autor, crédito y fecha.
-- 🟢 **Luz de novedades por búsqueda**: se enciende cuando entran fotos y se apaga
-  al abrir *esa* búsqueda, con la fecha de la última novedad al lado.
-- ⇅ **Panel ordenable**: coloca las búsquedas a mano y agrúpalas con separadores.
-- ⏱️ **Refresco global** configurable (cada X horas/días, a partir de una hora),
-  más ejecución manual de una búsqueda al momento.
-- ⤓ **Rellenar histórico**: descarga hacia atrás hasta el límite de retención.
-- 🗑️ **Retención** por tiempo (meses) o por espacio (MB), con purga automática.
-- 🔒 **Un solo usuario**, con login y contraseña.
-- 🔔 Aviso opcional (webhook) cuando una agencia deja de funcionar.
-- 🖥️ Corre en **Windows** (a demanda, doble clic) o como **servidor 24/7** (Docker).
+Grab the file for your system from the [releases](../../releases), unzip it, and
+run it. Python, the browser driver and everything else travels inside.
 
-## 🖼️ Las tres búsquedas de ejemplo
+| System | What to do |
+|---|---|
+| **Windows** | Double-click `newsphotostalker.exe`. Windows will warn it does not recognise the app — the binary is not signed. *More info → Run anyway*. |
+| **macOS** | Right-click `newsphotostalker` → *Open* → *Open*. Or once: `xattr -dr com.apple.quarantine newsphotostalker` |
+| **Linux** | `./newsphotostalker` — or install it properly with the one-liner below. |
 
-Al sembrar (`python -m scripts.seed`) se crean tres búsquedas que muestran los tres
-caminos de ingesta:
+```sh
+curl -fsSL https://raw.githubusercontent.com/jaimealekos/newsphotostalker/main/install.sh | sh
+```
 
-| Agencia | Tipo | Consulta |
-|---|---|---|
-| **Reuters** | Fotógrafo | Alejandro Martínez Vélez |
-| **Getty** | Fotógrafo | Pablo Blázquez Domínguez |
-| **AP** | Texto | APTOPIX |
+A terminal window opens (**that window is the program** — closing it stops it)
+and the panel opens in your browser. Sign in with **`admin` / `admin`** and
+change it in *ajustes*.
+
+Your photos, your database and your browser session are created in a **`data/`
+folder next to the executable**. Back that folder up and you have backed up
+everything; move it and everything comes along.
+
+> **Do not unzip it into `C:\Program Files`** (or anywhere you cannot write):
+> the program needs to create that folder beside itself.
+
+### On a server
+
+```sh
+newsphotostalker --host 0.0.0.0 --sin-navegador
+```
+
+---
+
+## The agencies
+
+Three of the four need no account at all. Only Reuters does.
+
+| Agency | Account | How it is fetched | Saved at |
+|---|---|---|---|
+| **AP** | not needed | anonymous search API | 1024 px |
+| **Getty** | not needed | server-rendered search pages | 2048 px |
+| **AFP** | not needed | same, through Getty's distribution | 2048 px |
+| **Reuters** | **yours** | logged-in browser | 640 px |
+
+Those are the largest previews each service hands out without a licence, and
+they carry the agency watermark. This tool **finds and tracks** work; licensing
+is between you and the agency.
 
 <p align="center">
-  <img src="docs/screenshots/01-dashboard.png" alt="Panel con las tres búsquedas" width="820">
+  <img src="docs/screenshots/02-reuters.png" alt="Reuters: Alejandro Martínez Vélez" width="860"><br>
+  <em>Reuters — Alejandro Martínez Vélez</em>
 </p>
 
-<table>
-  <tr>
-    <td><img src="docs/screenshots/02-reuters.png" alt="Reuters · Alejandro Martínez Vélez"></td>
-    <td><img src="docs/screenshots/04-ap.png" alt="AP · APTOPIX"></td>
-  </tr>
-</table>
+<p align="center">
+  <img src="docs/screenshots/03-getty.png" alt="Getty Images: Pablo Blázquez Domínguez" width="860"><br>
+  <em>Getty Images — Pablo Blázquez Domínguez</em>
+</p>
 
-## 🚀 Puesta en marcha
+### Signing in to Reuters
 
-### En Windows, sin instalar nada (recomendado)
+Reuters Connect requires a session and sits behind an anti-bot wall, so you sign
+in **by hand, once**, from *ajustes → iniciar sesión en Reuters*. A browser
+window opens, you sign in there, and the session is kept.
 
-1. Descarga el **`.zip`** de la última [release](../../releases) y descomprímelo
-   donde quieras: el Escritorio, un disco externo, da igual — pero **no** dentro
-   de `C:\Archivos de programa`, que Windows no deja escribir ahí.
-2. Doble clic en **`newsphotostalker.exe`**. Se abre una ventana negra (es el
-   programa: **déjala abierta**, cerrarla lo detiene) y, sola, la pestaña del
-   panel en tu navegador.
-3. Entra con **`admin` / `admin`** y cámbialo en *ajustes → tu cuenta*.
+**That is the only window you will ever see.** From then on searches run
+headless. Your Reuters password is never written to any file.
 
-La primera vez, junto al `.exe` aparecen un `config.local.yaml` que puedes editar
-y una carpeta **`data/`** con la base de datos, las fotos y la sesión del
-navegador. **Todo lo tuyo está ahí**: para mudarte de ordenador o hacer copia de
-seguridad, copia esa carpeta.
+It uses a browser you already have — Chrome, Edge, Brave or Chromium. On macOS
+and Linux one is bundled, in case you have none.
 
-No hay que instalar nada más: Python, Playwright y todo lo demás viajan dentro.
-Dos cosas que conviene saber:
+**No screen on that machine?** Sign in on your laptop, then *ajustes → exportar
+sesión* there and *importar sesión* on the server. What travels is a small file
+with the session already decrypted, so it works across Windows, macOS and Linux.
 
-- **Windows te dirá que no reconoce la aplicación.** El ejecutable no está
-  firmado (una firma cuesta dinero). *Más información → Ejecutar de todas formas*.
-- **Reuters** pide entrar una vez desde *ajustes → iniciar sesión en Reuters*: se
-  abre una ventana del navegador, inicias sesión ahí y se guarda. **Es la única
-  ventana que verás**; a partir de ahí las búsquedas corren sin abrir nada. Usa
-  el Chrome que tengas o, si no lo tienes, el **Edge que ya trae Windows**. AP,
-  Getty y AFP no necesitan cuenta.
+---
 
-### Desde el código
+## Under the hood
 
-Necesitas **Python 3.10+**. Para el modo real de Reuters, **Google Chrome** instalado.
+Python, [FastAPI](https://fastapi.tiangolo.com/), SQLite and
+[Playwright](https://playwright.dev/) (Reuters only). No account, no API key and
+no telemetry: it talks to the four agencies and to nothing else.
 
-```bash
+```sh
 git clone https://github.com/jaimealekos/newsphotostalker.git
 cd newsphotostalker
-python -m venv .venv
-source .venv/bin/activate                 # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-cp config.example.yaml config.local.yaml  # arranca en modo "mock" (sin credenciales)
-python -m scripts.seed                     # siembra las 3 búsquedas de ejemplo
-python run.py                              # elige puerto libre y abre el panel
+python -m venv .venv && .venv/bin/pip install -r requirements.txt
+cp config.example.yaml config.local.yaml
+python run.py
 ```
 
-Entra con **`admin` / `admin`** (cámbialo en *ajustes → tu cuenta*). En modo `mock`
-las fotos son sintéticas, así que puedes probar TODO el sistema sin credenciales.
-Cuando quieras las de verdad, pon `mode: live` en `config.local.yaml`.
+Tests: `python -m pytest tests/ -q`.
+Packages are built and smoke-tested for the three systems by
+[GitHub Actions](.github/workflows/release.yml) on every `v*` tag — nobody
+compiles anything, neither you nor whoever downloads it.
 
-En Windows también vale el doble clic en **`arrancar_servidor.bat`**.
+The full manual, in Spanish, is in [MANUAL.md](MANUAL.md).
 
-### Publicar una versión
+---
 
-No hay que compilar a mano: al empujar una etiqueta, GitHub compila en Windows,
-comprueba que el ejecutable arranca y cuelga el `.zip` de la release.
-
-```bash
-git tag v1.1.0 && git push origin v1.1.0
-```
-
-Ver [`.github/workflows/release.yml`](.github/workflows/release.yml). Para
-compilarlo en tu máquina, `pip install pyinstaller` y `python build.py`.
-
-Se compila en **onedir** (una carpeta, no un fichero único): arranca antes,
-Playwright —que arrastra un Node y su driver— se empaqueta sin sobresaltos, y
-sobre todo los datos del usuario caen junto al `.exe` en vez de en una carpeta
-temporal que Windows borra al salir. El porqué, con detalle, en
-[`newsphotostalker.spec`](newsphotostalker.spec).
-
-### Como servidor 24/7 (Docker)
-
-Ver [`deploy/`](deploy/) para la imagen Docker (con Xvfb para el navegador de
-Reuters), `docker-compose`, y plantillas de systemd + nginx.
-
-## 🔐 Reuters (login)
-
-Reuters Connect exige sesión iniciada y está tras el muro anti-bot **DataDome**,
-así que este adaptador conduce un **navegador real con tu login**. El login lo
-haces **tú, a mano**, una vez:
-
-```bash
-python -m scripts.login_reuters       # (o login_reuters.bat en Windows)
-```
-
-Se abre una ventana de Chrome en la página de login; entras (email, contraseña y
-el deslizador si aparece) y la sesión queda guardada para las siguientes veces.
-**Es la única vez que verás una ventana**: las ejecuciones normales van en
-headless y no abren nada. **AP, Getty y AFP no necesitan login.**
-
-## ⚙️ Configuración
-
-Todo en `config.local.yaml` (gitignored). Lo esencial: `mode` (mock/live) y las
-credenciales de Reuters. `playwright.executable_path` puede quedarse en `null`: en
-Windows se usa solo el Google Chrome instalado. Ver comentarios en
-[`config.example.yaml`](config.example.yaml).
-
-El **refresco** (cada cuánto se revisan todas las búsquedas y a qué hora) y las
-**fotos por página** se configuran desde *ajustes* en el panel.
-
-## 🧪 Tests
-
-```bash
-python -m pytest -q
-```
-
-Cubren retención, adaptador mock, normalización de formularios, ruteo de
-credenciales, construcción de consultas de los adaptadores en vivo y el pipeline
-completo de extremo a extremo.
-
-## 📚 Más
-
-- [MANUAL.md](MANUAL.md) — guía de uso detallada.
-- [CONTRIBUTING.md](CONTRIBUTING.md) — cómo contribuir.
-
-## ⚠️ Uso responsable
-
-Herramienta para uso personal. Depende del maquetado y las APIs de terceros, que
-pueden cambiar o romperse en cualquier momento. Respeta los **Términos de Servicio**
-de cada agencia y usa tus **propias cuentas** (Reuters requiere tu sesión). Las
-previews que se descargan llevan la **marca de agua** de la agencia. No lo uses
-para redistribuir contenido con derechos.
-
-## 📄 Licencia
-
-[MIT](LICENSE) © 2026 Jaime Alekos
+<p align="center"><sub>
+newsphotostalker is not affiliated with AP, Reuters, AFP or Getty Images.<br>
+Photographs belong to their authors and agencies.
+</sub></p>

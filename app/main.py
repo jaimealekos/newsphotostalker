@@ -10,8 +10,10 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import Depends, FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from urllib.parse import quote
+
+from fastapi import Depends, FastAPI, File, Form, Request, UploadFile
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -386,7 +388,10 @@ def activity(
 # --- ajustes ---------------------------------------------------------------
 @app.get("/settings", response_class=HTMLResponse)
 def settings_page(
-    request: Request, db: Session = Depends(get_db), user: User = Depends(require_user)
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
+    sesion: str = "",
 ):
     creds = {}
     for agency in ["ap", "reuters", "getty"]:
@@ -396,11 +401,10 @@ def settings_page(
             "has_login": c.has_login if c else False,
             "username": (c.username if c else None),
         }
-    from .ingest.live_base import windows_browser
+    from .ingest.live_base import browser_summary
     from .ingest.reuters_login import STATUS as reuters_login_status
 
     perfil = settings.data_dir / "browser" / "reuters"
-    navegador = windows_browser()
     return templates.TemplateResponse(
         "settings.html",
         _ctx(
@@ -412,8 +416,10 @@ def settings_page(
             # sigue siendo válida: eso únicamente se sabe ejecutando.
             reuters_profile=perfil.exists(),
             reuters_login=reuters_login_status,
-            # Qué navegador conducirá Reuters (o None si no hay ninguno).
-            browser_name=navegador[0] if navegador else None,
+            # Qué navegador conducirá Reuters ("" si no hay ninguno usable).
+            browser_name=browser_summary(),
+            # Resultado de exportar/importar la sesión, si se acaba de intentar.
+            sesion_msg=sesion,
             data_dir=str(settings.data_dir),
             user=user,
         ),
@@ -444,6 +450,43 @@ def update_global_settings(
 def refresh_now_all(user: User = Depends(require_user)):
     scheduler.run_all_now()
     return RedirectResponse("/settings", status_code=303)
+
+
+@app.get("/reuters/session/export")
+def reuters_session_export(user: User = Depends(require_user)):
+    """Descarga la sesión de Reuters para llevarla a otro equipo.
+
+    Pensado para servidores sin pantalla: el login se hace donde hay monitor y
+    aquí se recoge el resultado.
+    """
+    from .ingest import reuters_session
+
+    try:
+        estado = reuters_session.con_navegador_libre(reuters_session.export_state)
+    except reuters_session.SessionError as exc:
+        return RedirectResponse(f"/settings?sesion={quote(str(exc))}", status_code=303)
+    return Response(
+        content=reuters_session.to_json(estado),
+        media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="sesion-reuters.json"'},
+    )
+
+
+@app.post("/reuters/session/import")
+async def reuters_session_import(
+    user: User = Depends(require_user), sesion: UploadFile = File(...)
+):
+    """Instala aquí una sesión exportada en otro equipo."""
+    from .ingest import reuters_session
+
+    try:
+        estado = reuters_session.from_json(await sesion.read())
+        mensaje = reuters_session.con_navegador_libre(reuters_session.import_state, estado)
+    except reuters_session.SessionError as exc:
+        mensaje = str(exc)
+    except Exception as exc:  # noqa: BLE001 - subir un fichero no debe tumbar nada
+        mensaje = f"{type(exc).__name__}: {exc}"
+    return RedirectResponse(f"/settings?sesion={quote(mensaje)}", status_code=303)
 
 
 @app.post("/reuters/login")

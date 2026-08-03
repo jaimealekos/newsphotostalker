@@ -38,6 +38,12 @@ FROZEN = bool(getattr(sys, "frozen", False))
 BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", REPO_ROOT))
 BASE_DIR = Path(sys.executable).resolve().parent if FROZEN else REPO_ROOT
 
+# En macOS y Linux el paquete puede traer dentro su propio Chromium (allí puede
+# no haber ningún navegador instalado). Hay que decírselo a Playwright ANTES de
+# que lo importe nadie, así que se hace aquí, en el módulo que carga primero.
+if FROZEN and (BUNDLE_DIR / "ms-playwright").is_dir():
+    os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(BUNDLE_DIR / "ms-playwright"))
+
 
 @dataclass
 class AgencyCredentials:

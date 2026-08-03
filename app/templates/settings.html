@@ -100,6 +100,22 @@
       {{ "esperando a que entres…" if reuters_login.running else "iniciar sesión en Reuters" }}
     </button>
   </form>
+
+  <h2 class="section-title" style="margin-top:22px">Traer la sesión de otro equipo</h2>
+  <p class="muted small">
+    Si esto corre en un servidor <strong>sin pantalla</strong>, no hay dónde abrir la ventana
+    del login. Solución: inicia sesión en tu portátil, <strong>exporta</strong> la sesión ahí y
+    <strong>impórtala</strong> aquí. Viaja un fichero con las cookies ya descifradas, así que
+    funciona entre Windows, macOS y Linux indistintamente.
+  </p>
+  {% if sesion_msg %}<p class="small"><strong>{{ sesion_msg }}</strong></p>{% endif %}
+  <div class="head-actions">
+    <a href="/reuters/session/export" class="btn btn-ghost">⤓ exportar sesión</a>
+    <form method="post" action="/reuters/session/import" enctype="multipart/form-data" class="user-form">
+      <input type="file" name="sesion" accept=".json,application/json" required>
+      <button class="btn btn-ghost">⤒ importar sesión</button>
+    </form>
+  </div>
 </section>
 
 <section class="form-card">
