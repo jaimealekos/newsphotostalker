@@ -39,7 +39,7 @@ run it. Python, the browser driver and everything else travels inside.
 
 | System | What to do |
 |---|---|
-| **Windows** | Double-click `newsphotostalker.exe`. Windows will warn it does not recognise the app — the binary is not signed. *More info → Run anyway*. |
+| **Windows** | Double-click `newsphotostalker.exe`. Windows will warn it does not recognise the app — the binary is not signed. *More info → Run anyway*. Defender may also call it a trojan; [see below](#your-antivirus-says-its-a-trojan). |
 | **macOS** | Right-click `newsphotostalker` → *Open* → *Open*. Or once: `xattr -dr com.apple.quarantine newsphotostalker` |
 | **Linux** | `./newsphotostalker` — or install it properly with the one-liner below. |
 
@@ -67,6 +67,34 @@ everything; move it and everything comes along.
 ```sh
 newsphotostalker --host 0.0.0.0 --sin-navegador
 ```
+
+### Your antivirus says it's a trojan
+
+Windows Defender may flag the download as **`Trojan:Script/Wacatac.B!ml`**. It is
+a false positive, and here is why — judge for yourself rather than taking my word:
+
+- The **`!ml`** suffix means the verdict came from a machine-learning guess, not
+  from matching known malware.
+- Every program packaged with [PyInstaller](https://pyinstaller.org/) shares the
+  same startup stub. Real malware uses it too, so the models learned to distrust
+  that shape. It is [the single most common false positive](https://github.com/pyinstaller/pyinstaller/issues/6754)
+  in Python packaging.
+- An unsigned file that nobody has downloaded before gets no benefit of the
+  doubt. Signing costs a few hundred euros a year, which this does not have.
+
+What you can check:
+
+1. Every release is built **in the open** by [GitHub Actions](../../actions),
+   from the source in this repository. The build log is public.
+2. Each `.zip` ships a `.sha256` beside it. Compare it with what you downloaded:
+   `Get-FileHash newsphotostalker-windows-*.zip` on Windows, `shasum -a 256` elsewhere.
+3. Build it yourself with `python build.py` and compare behaviour. A binary you
+   compiled locally is not flagged — which is the point: the file is not the
+   problem, its lack of reputation is.
+
+If you would rather not add an exception, run it from source instead — see below.
+Reports of this false positive can be sent to Microsoft at
+[their submission page](https://www.microsoft.com/en-us/wdsi/filesubmission).
 
 ---
 

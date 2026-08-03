@@ -51,7 +51,22 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller
+
+      - name: Instalar PyInstaller (Windows, compilando su arranque)
+        if: runner.os == 'Windows'
+        # Compilado desde fuente a propósito, no desde el paquete ya construido.
+        #
+        # Windows Defender marca los ejecutables de PyInstaller como
+        # `Trojan:Script/Wacatac.B!ml` — una detección heurística, no una firma:
+        # el arranque que PyInstaller distribuye ya compilado es el MISMO binario
+        # en miles de programas, y el malware real también lo usa, así que los
+        # modelos han aprendido a desconfiar de esa huella. Compilarlo aquí
+        # produce un binario distinto y suele bastar para que deje de saltar.
+        run: pip install --no-binary pyinstaller pyinstaller
+
+      - name: Instalar PyInstaller (macOS y Linux)
+        if: runner.os != 'Windows'
+        run: pip install pyinstaller
 
       - name: Descargar Chromium para empaquetarlo
         if: matrix.chromium == 'si'
@@ -131,10 +146,29 @@ jobs:
           rm -rf dist/newsphotostalker/data dist/newsphotostalker/config.local.yaml
           python build.py --solo-zip
 
+      - name: Huella SHA-256 del paquete
+        # Para que cualquiera pueda comprobar que lo que se ha bajado es
+        # exactamente lo que salió de aquí, y no algo manipulado por el camino.
+        shell: bash
+        run: |
+          cd dist
+          for z in *.zip; do
+            python -c "
+          import hashlib, sys
+          from pathlib import Path
+          z = Path(sys.argv[1])
+          h = hashlib.sha256(z.read_bytes()).hexdigest()
+          Path(z.name + '.sha256').write_text(f'{h}  {z.name}\n', encoding='utf-8')
+          print(h, z.name)
+          " "$z"
+          done
+
       - uses: actions/upload-artifact@v4
         with:
           name: newsphotostalker-${{ matrix.nombre }}
-          path: dist/*.zip
+          path: |
+            dist/*.zip
+            dist/*.sha256
 
   publicar:
     needs: paquete
@@ -147,7 +181,9 @@ jobs:
       - name: Publicar la release
         uses: softprops/action-gh-release@v2
         with:
-          files: paquetes/**/*.zip
+          files: |
+            paquetes/**/*.zip
+            paquetes/**/*.sha256
           generate_release_notes: true
           body: |
             Download the package for your system, unzip it and run it. Nothing to install.
@@ -166,8 +202,16 @@ jobs:
             Your photos and database are created in a `data/` folder **next to the
             executable**. Back that up and you have backed up everything.
 
-            **Windows** will warn that it does not recognise the app: the binary is
-            not signed. *More info → Run anyway*.
+            **Windows** will warn that it does not recognise the app, and Defender
+            may flag it as `Trojan:Script/Wacatac.B!ml`. **It is a false positive.**
+            That `!ml` suffix means a machine-learning guess, not a match against
+            known malware: every PyInstaller program shares the same startup stub,
+            real malware uses it too, and unsigned downloads with no reputation get
+            flagged. The binaries are built in the open by
+            [GitHub Actions](../../actions) from this source — the build log is
+            public, and you can compile it yourself with `python build.py` and
+            compare. Each `.zip` ships a `.sha256` next to it so you can check that
+            what you downloaded is what came out of that build.
 
             **macOS** will refuse the first launch for the same reason. Either
             right-click the file → *Open* → *Open*, or run once:
