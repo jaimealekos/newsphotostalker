@@ -6,17 +6,25 @@ Deja en ``dist/`` la carpeta ``newsphotostalker/`` y un
 ``newsphotostalker-<sistema>-<version>.zip`` con ella dentro: eso es lo que se
 adjunta a una release. El usuario descomprime y ejecuta.
 
-Compila para el sistema en el que se ejecuta y solo para ese: los binarios no se
-pueden compilar cruzados. De ahí que Windows, macOS y Linux salgan cada uno de
-su propio runner en GitHub Actions.
+Compila para el sistema en el que se ejecuta y solo para ese, porque nada de
+esto se puede compilar cruzado. Cada sistema sale de su propio runner en
+GitHub Actions.
 
-Se compila en modo *onedir* (una carpeta, no un fichero único). El porqué está
-explicado en ``newsphotostalker.spec``.
+Dos formas de empaquetar, según el sistema:
+
+* **Windows → versión portable**: un Python embebido (el de python.org, firmado)
+  que un ``.bat`` arranca sobre el código. NO se usa PyInstaller, a propósito:
+  Windows Defender marca el arranque de los ejecutables de PyInstaller como
+  ``Trojan:Script/Wacatac.B!ml`` —un falso positivo heurístico—, y un ``.bat``
+  que lanza ``python.exe`` no tiene ese arranque, así que no salta.
+* **macOS y Linux → PyInstaller**: un ejecutable de un archivo por carpeta
+  (*onedir*). Ahí Defender no es problema. Ver ``newsphotostalker.spec``.
 
 Opciones útiles al desarrollar:
 
     python build.py --salida C:/tmp/dist   # compilar fuera del repositorio
     python build.py --sin-zip              # solo la carpeta, sin comprimir
+    python build.py --solo-zip             # comprimir una carpeta ya hecha
 """
 
 from __future__ import annotations
@@ -27,17 +35,112 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import urllib.request
 import zipfile
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent
 NOMBRE = "newsphotostalker"
-#: En Windows el binario lleva extensión; en macOS y Linux, no.
-EJECUTABLE = f"{NOMBRE}.exe" if sys.platform == "win32" else NOMBRE
+WIN = sys.platform == "win32"
+
+#: El lanzador que verá el usuario, y que se comprueba tras compilar.
+LANZADOR = f"{NOMBRE}.bat" if WIN else NOMBRE
+
+#: Nombre del sistema en el fichero final. install.sh busca justo estas palabras.
+SISTEMA = {"win32": "windows", "darwin": "macos"}.get(sys.platform, "linux")
+
 #: Chromium empaquetado (macOS y Linux), como tarball. Ver preparar_chromium().
 TARBALL = RAIZ / "assets" / "chromium.tar.gz"
 
+# --- versión portable de Windows -------------------------------------------
+#: Python embebido que se empaqueta. Fijo, para que el build sea reproducible.
+PY_EMBED_VERSION = "3.12.10"
+PY_EMBED_URL = (
+    f"https://www.python.org/ftp/python/{PY_EMBED_VERSION}/"
+    f"python-{PY_EMBED_VERSION}-embed-amd64.zip"
+)
+GET_PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
 
+BAT = """\
+@echo off
+title newsphotostalker
+cd /d "%~dp0"
+set "NPS_PORTABLE=1"
+"%~dp0python\\python.exe" "%~dp0run.py" %*
+echo.
+echo El programa se ha detenido. Pulsa una tecla para cerrar esta ventana.
+pause >nul
+"""
+
+
+def _descarga(url: str, destino: Path) -> None:
+    print(f"   bajando {url.rsplit('/', 1)[-1]}")
+    with urllib.request.urlopen(url) as respuesta, open(destino, "wb") as fichero:
+        shutil.copyfileobj(respuesta, fichero)
+
+
+def build_portable_windows(salida: Path) -> Path:
+    """Monta la versión portable: Python embebido + dependencias + código + .bat.
+
+    El resultado se ejecuta con ``python.exe`` (firmado por la Python Software
+    Foundation), no con un ejecutable propio, así que Defender no lo marca.
+    """
+    dest = salida / NOMBRE
+    shutil.rmtree(dest, ignore_errors=True)
+    dest.mkdir(parents=True)
+    py = dest / "python"
+    py.mkdir()
+
+    trabajo = salida / "_portable_tmp"
+    shutil.rmtree(trabajo, ignore_errors=True)
+    trabajo.mkdir(parents=True)
+    try:
+        print(f"== Python embebido {PY_EMBED_VERSION} ==")
+        embed = trabajo / "embed.zip"
+        _descarga(PY_EMBED_URL, embed)
+        with zipfile.ZipFile(embed) as zf:
+            zf.extractall(py)
+
+        # El embebido va en modo aislado: se le habilita ``site`` y se le añade
+        # site-packages, para que pip instale ahí y los imports lo encuentren.
+        pth = next(py.glob("python*._pth"))
+        lineas = pth.read_text(encoding="utf-8").splitlines()
+        lineas = ["import site" if x.strip() == "#import site" else x for x in lineas]
+        if "Lib\\site-packages" not in lineas:
+            lineas.append("Lib\\site-packages")
+        pth.write_text("\n".join(lineas) + "\n", encoding="utf-8")
+
+        exe = py / "python.exe"
+        print("== pip ==")
+        get_pip = trabajo / "get-pip.py"
+        _descarga(GET_PIP_URL, get_pip)
+        _corre([str(exe), str(get_pip), "--no-warn-script-location"])
+
+        print("== dependencias ==")
+        _corre([
+            str(exe), "-m", "pip", "install", "--no-warn-script-location",
+            "-r", str(RAIZ / "requirements.txt"),
+        ])
+        # pytest solo se usa en las pruebas; fuera del paquete que se descarga.
+        _corre([str(exe), "-m", "pip", "uninstall", "-y", "pytest"], tolera_fallo=True)
+    finally:
+        shutil.rmtree(trabajo, ignore_errors=True)
+
+    print("== código y lanzador ==")
+    shutil.copytree(RAIZ / "app", dest / "app", ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copy2(RAIZ / "run.py", dest / "run.py")
+    shutil.copy2(RAIZ / "config.example.yaml", dest / "config.example.yaml")
+    (dest / f"{NOMBRE}.bat").write_text(BAT, encoding="utf-8")
+    return dest
+
+
+def _corre(orden: list[str], tolera_fallo: bool = False) -> None:
+    proceso = subprocess.run(orden, cwd=RAIZ)
+    if proceso.returncode != 0 and not tolera_fallo:
+        raise SystemExit(f"falló: {' '.join(orden[:3])}…")
+
+
+# --- versión PyInstaller (macOS y Linux) -----------------------------------
 def preparar_chromium() -> None:
     """Empaqueta el Chromium de Playwright en un .tar.gz para meterlo dentro.
 
@@ -47,11 +150,9 @@ def preparar_chromium() -> None:
       encuentra entre los datos, y con Chromium.app falla (`codesign … failed`);
     * y el tar conserva el **bit de ejecución**, que PyInstaller pierde al
       copiar datos, así que el navegador llegaría sin permisos y no arrancaría.
-
-    En Windows no se hace: siempre hay Edge de serie y son ~150 MB de más.
     """
     TARBALL.unlink(missing_ok=True)
-    if sys.platform == "win32" or os.environ.get("NPS_SIN_CHROMIUM"):
+    if WIN or os.environ.get("NPS_SIN_CHROMIUM"):
         return
     cache = {
         "darwin": Path.home() / "Library" / "Caches" / "ms-playwright",
@@ -74,6 +175,18 @@ def preparar_chromium() -> None:
     print(f"   {TARBALL.stat().st_size / 1024 / 1024:.0f} MB")
 
 
+def build_pyinstaller(salida: Path, trabajo: Path) -> Path:
+    preparar_chromium()
+    orden = [
+        sys.executable, "-m", "PyInstaller", str(RAIZ / f"{NOMBRE}.spec"),
+        "--noconfirm", "--distpath", str(salida), "--workpath", str(trabajo),
+    ]
+    if subprocess.run(orden, cwd=RAIZ).returncode != 0:
+        raise SystemExit("PyInstaller ha fallado; revisa la salida de arriba")
+    return salida / NOMBRE
+
+
+# --- común ------------------------------------------------------------------
 def version() -> str:
     texto = (RAIZ / "app" / "__init__.py").read_text(encoding="utf-8")
     for linea in texto.splitlines():
@@ -83,23 +196,11 @@ def version() -> str:
 
 
 def compilar(salida: Path, trabajo: Path) -> Path:
-    preparar_chromium()
-    print(f"== compilando {NOMBRE} {version()} ==")
-    orden = [
-        sys.executable, "-m", "PyInstaller", str(RAIZ / f"{NOMBRE}.spec"),
-        "--noconfirm", "--distpath", str(salida), "--workpath", str(trabajo),
-    ]
-    proceso = subprocess.run(orden, cwd=RAIZ)
-    if proceso.returncode != 0:
-        raise SystemExit("PyInstaller ha fallado; revisa la salida de arriba")
-    carpeta = salida / NOMBRE
-    if not (carpeta / EJECUTABLE).exists():
-        raise SystemExit(f"no se ha generado {carpeta / EJECUTABLE}")
+    print(f"== compilando {NOMBRE} {version()} para {SISTEMA} ==")
+    carpeta = build_portable_windows(salida) if WIN else build_pyinstaller(salida, trabajo)
+    if not (carpeta / LANZADOR).exists():
+        raise SystemExit(f"no se ha generado {carpeta / LANZADOR}")
     return carpeta
-
-
-#: Nombre del sistema en el fichero final. install.sh busca justo estas palabras.
-SISTEMA = {"win32": "windows", "darwin": "macos"}.get(sys.platform, "linux")
 
 
 def comprimir(carpeta: Path) -> Path:
@@ -145,7 +246,8 @@ def main() -> int:
     if not args.sin_zip:
         zip_final = comprimir(carpeta)
         print(f"zip:     {zip_final}  ({tamano(zip_final)})")
-    print("\nListo. Para probarlo, ejecuta el .exe de esa carpeta.")
+    arranque = LANZADOR if WIN else f"./{LANZADOR}"
+    print(f"\nListo. Para probarlo, ejecuta {arranque} de esa carpeta.")
     return 0
 
 

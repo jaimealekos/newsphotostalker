@@ -39,7 +39,7 @@ run it. Python, the browser driver and everything else travels inside.
 
 | System | What to do |
 |---|---|
-| **Windows** | Double-click `newsphotostalker.exe`. Windows will warn it does not recognise the app — the binary is not signed. *More info → Run anyway*. Defender may also call it a trojan; [see below](#your-antivirus-says-its-a-trojan). |
+| **Windows** | Double-click `newsphotostalker.bat`. |
 | **macOS** | Right-click `newsphotostalker` → *Open* → *Open*. Or once: `xattr -dr com.apple.quarantine newsphotostalker` |
 | **Linux** | `./newsphotostalker` — or install it properly with the one-liner below. |
 
@@ -56,7 +56,7 @@ change it in the settings page.
 > `ajustes`, and so on.
 
 Your photos, your database and your browser session are created in a **`data/`
-folder next to the executable**. Back that folder up and you have backed up
+folder next to the launcher**. Back that folder up and you have backed up
 everything; move it and everything comes along.
 
 > **Do not unzip it into `C:\Program Files`** (or anywhere you cannot write):
@@ -68,33 +68,20 @@ everything; move it and everything comes along.
 newsphotostalker --host 0.0.0.0 --sin-navegador
 ```
 
-### Your antivirus says it's a trojan
+### A note on Windows
 
-Windows Defender may flag the download as **`Trojan:Script/Wacatac.B!ml`**. It is
-a false positive, and here is why — judge for yourself rather than taking my word:
+The Windows package is **not** a single `.exe`. It is a small copy of Python
+(the official, signed build from python.org) plus a `.bat` that runs the app from
+its source code, all in the folder. That is deliberate: a packaged `.exe` was
+being flagged by Windows Defender as a false-positive trojan
+(`Trojan:Script/Wacatac.B!ml`) — every program built with the usual Python
+packager shares one startup stub that the malware models learned to distrust. A
+`.bat` running the signed `python.exe` has no such stub, so it is not flagged.
 
-- The **`!ml`** suffix means the verdict came from a machine-learning guess, not
-  from matching known malware.
-- Every program packaged with [PyInstaller](https://pyinstaller.org/) shares the
-  same startup stub. Real malware uses it too, so the models learned to distrust
-  that shape. It is [the single most common false positive](https://github.com/pyinstaller/pyinstaller/issues/6754)
-  in Python packaging.
-- An unsigned file that nobody has downloaded before gets no benefit of the
-  doubt. Signing costs a few hundred euros a year, which this does not have.
-
-What you can check:
-
-1. Every release is built **in the open** by [GitHub Actions](../../actions),
-   from the source in this repository. The build log is public.
-2. Each `.zip` ships a `.sha256` beside it. Compare it with what you downloaded:
-   `Get-FileHash newsphotostalker-windows-*.zip` on Windows, `shasum -a 256` elsewhere.
-3. Build it yourself with `python build.py` and compare behaviour. A binary you
-   compiled locally is not flagged — which is the point: the file is not the
-   problem, its lack of reputation is.
-
-If you would rather not add an exception, run it from source instead — see below.
-Reports of this false positive can be sent to Microsoft at
-[their submission page](https://www.microsoft.com/en-us/wdsi/filesubmission).
+Nothing here is signed either way (a certificate costs money), so on first run
+Windows may still ask for a confirmation click. Everything is built in the open
+by [GitHub Actions](../../actions) from this source, and each `.zip` ships a
+`.sha256` so you can verify your download.
 
 ---
 

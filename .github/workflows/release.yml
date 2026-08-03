@@ -1,15 +1,14 @@
-# Compila el programa para Windows, macOS y Linux, comprueba en CADA sistema que
-# el ejecutable arranca de verdad, y cuelga los tres paquetes de una release.
+# Empaqueta el programa para Windows, macOS y Linux, comprueba en CADA sistema
+# que arranca de verdad, y cuelga los tres paquetes de una release.
 #
 # El objetivo es que nadie compile: ni quien lo descarga ni quien lo publica.
 #
-#     git tag v1.1.0 && git push origin v1.1.0
+#     git tag v1.2.0 && git push origin v1.2.0
 #
-# También se puede lanzar a mano desde Actions ("Run workflow"); entonces los
-# paquetes quedan como artefactos de la ejecución en vez de como release.
-#
-# Nota: los binarios NO se pueden compilar cruzados. Cada sistema se compila en
-# su propio runner, y por eso esta es la única forma de probar macOS y Linux.
+# Windows sale como versión PORTABLE (un Python embebido que un .bat arranca
+# sobre el código); macOS y Linux, como ejecutable de PyInstaller. El porqué de
+# la diferencia está en build.py. Nada de esto se compila cruzado, así que cada
+# sistema sale de su propio runner.
 name: release
 
 on:
@@ -28,15 +27,10 @@ jobs:
         include:
           - os: windows-latest
             nombre: windows
-            # En Windows siempre hay Edge, así que no se empaqueta Chromium:
-            # ahorra ~150 MB de descarga.
-            chromium: "no"
           - os: macos-latest
             nombre: macos
-            chromium: "si"
           - os: ubuntu-latest
             nombre: linux
-            chromium: "si"
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.nombre }}
     steps:
@@ -47,47 +41,35 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Instalar dependencias
+      - name: Dependencias (para las pruebas)
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Instalar PyInstaller (Windows, compilando su arranque)
-        if: runner.os == 'Windows'
-        # Compilado desde fuente a propósito, no desde el paquete ya construido.
-        #
-        # Windows Defender marca los ejecutables de PyInstaller como
-        # `Trojan:Script/Wacatac.B!ml` — una detección heurística, no una firma:
-        # el arranque que PyInstaller distribuye ya compilado es el MISMO binario
-        # en miles de programas, y el malware real también lo usa, así que los
-        # modelos han aprendido a desconfiar de esa huella. Compilarlo aquí
-        # produce un binario distinto y suele bastar para que deje de saltar.
-        run: pip install --no-binary pyinstaller pyinstaller
-
-      - name: Instalar PyInstaller (macOS y Linux)
+      - name: PyInstaller (solo macOS y Linux)
         if: runner.os != 'Windows'
+        # Windows ya no usa PyInstaller: sale como versión portable con un .bat,
+        # justamente para no arrastrar el arranque que Defender marca.
         run: pip install pyinstaller
 
-      - name: Descargar Chromium para empaquetarlo
-        if: matrix.chromium == 'si'
-        # Solo macOS y Linux: allí puede no haber ningún navegador instalado y
-        # el programa tiene que funcionar nada más descargarlo.
+      - name: Chromium para empaquetarlo (macOS y Linux)
+        if: runner.os != 'Windows'
+        # En Windows siempre hay Edge; en macOS y Linux puede no haber navegador.
         run: python -m playwright install chromium
 
       - name: Pruebas
         run: python -m pytest tests/ -q
 
       - name: Compilar
-        env:
-          # La variable la lee el .spec para decidir si mete Chromium dentro.
-          NPS_SIN_CHROMIUM: ${{ matrix.chromium == 'no' && '1' || '' }}
         run: python build.py --sin-zip
 
-      - name: Comprobar que el ejecutable arranca (Windows)
+      - name: Comprobar que arranca (Windows, versión portable)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $proc = Start-Process "dist/newsphotostalker/newsphotostalker.exe" -PassThru
+          $env:NPS_PORTABLE = "1"
+          $exe = "dist/newsphotostalker/python/python.exe"
+          $proc = Start-Process $exe -ArgumentList "run.py" -PassThru -WorkingDirectory "dist/newsphotostalker"
           $ok = $false
           foreach ($i in 1..40) {
             Start-Sleep -Seconds 2
@@ -96,12 +78,23 @@ jobs:
             } catch { }
           }
           Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
-          if (-not $ok) { throw "el ejecutable no respondió en el puerto 8010" }
-          if (-not (Test-Path "dist/newsphotostalker/data/app.db")) { throw "no creó data/app.db junto al ejecutable" }
+          if (-not $ok) { throw "no respondió en el puerto 8010" }
+          if (-not (Test-Path "dist/newsphotostalker/newsphotostalker.bat")) { throw "falta el lanzador .bat" }
+          if (-not (Test-Path "dist/newsphotostalker/data/app.db")) { throw "no creó data/app.db junto al lanzador" }
           if (-not (Test-Path "dist/newsphotostalker/config.local.yaml")) { throw "no creó config.local.yaml" }
           Write-Host "arranca y crea sus datos donde debe"
 
-      - name: Comprobar que el ejecutable arranca (macOS y Linux)
+      - name: Comprobar el navegador desde el Python embebido (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        # Que el Python embebido trae Playwright, que app importa y que el runner
+        # tiene un navegador que detectar. El arranque real del navegador se
+        # verifica en macOS y Linux, con la misma versión de Playwright.
+        run: |
+          cd dist/newsphotostalker
+          ./python/python.exe -c "import sys; sys.path.insert(0,'.'); import playwright; from app.ingest.live_base import system_browser; b=system_browser(); print('navegador:', b); assert b, 'el runner no expone ningun navegador'"
+
+      - name: Comprobar que arranca (macOS y Linux)
         if: runner.os != 'Windows'
         run: |
           ./dist/newsphotostalker/newsphotostalker &
@@ -112,22 +105,19 @@ jobs:
             if curl -fsS http://127.0.0.1:8010/login > /dev/null 2>&1; then ok=1; break; fi
           done
           kill $PID 2>/dev/null || true
-          [ "$ok" = "1" ] || { echo "el ejecutable no respondió en el puerto 8010"; exit 1; }
-          [ -f dist/newsphotostalker/data/app.db ] || { echo "no creó data/app.db junto al ejecutable"; exit 1; }
+          [ "$ok" = "1" ] || { echo "no respondió en el puerto 8010"; exit 1; }
+          [ -f dist/newsphotostalker/data/app.db ] || { echo "no creó data/app.db"; exit 1; }
           [ -f dist/newsphotostalker/config.local.yaml ] || { echo "no creó config.local.yaml"; exit 1; }
           echo "arranca y crea sus datos donde debe"
 
-      - name: Comprobar que el navegador empaquetado arranca
-        if: matrix.chromium == 'si'
-        # Sin esto, un macOS o un Linux sin Chrome instalado se quedaría sin
-        # Reuters y no nos enteraríamos hasta que lo dijese un usuario. El
-        # arranque anterior ya habrá desempaquetado el tarball en data/browsers.
+      - name: Comprobar que el navegador empaquetado arranca (macOS y Linux)
+        if: runner.os != 'Windows'
         run: |
           python - <<'PY'
           import os, sys
           from pathlib import Path
           browsers = Path("dist/newsphotostalker/data/browsers")
-          encontrados = sorted(browsers.glob("chromium-*")) if browsers.is_dir() else []
+          encontrados = sorted(browsers.glob("chromium*")) if browsers.is_dir() else []
           if not encontrados:
               sys.exit("el arranque no ha desempaquetado Chromium en data/browsers")
           print("desempaquetado:", [c.name for c in encontrados])
@@ -135,7 +125,7 @@ jobs:
           from playwright.sync_api import sync_playwright
           with sync_playwright() as pw:
               b = pw.chromium.launch(headless=True)
-              pg = b.new_page(); pg.goto("about:blank")
+              b.new_page().goto("about:blank")
               print("el Chromium empaquetado arranca:", b.version)
               b.close()
           PY
@@ -147,8 +137,7 @@ jobs:
           python build.py --solo-zip
 
       - name: Huella SHA-256 del paquete
-        # Para que cualquiera pueda comprobar que lo que se ha bajado es
-        # exactamente lo que salió de aquí, y no algo manipulado por el camino.
+        # Para que cualquiera compruebe que lo descargado es lo que salió de aquí.
         shell: bash
         run: |
           cd dist
@@ -188,36 +177,31 @@ jobs:
           body: |
             Download the package for your system, unzip it and run it. Nothing to install.
 
-            | System | File | Notes |
+            | System | File | Run |
             |---|---|---|
-            | **Windows** | `…-windows-…zip` | double-click `newsphotostalker.exe` |
+            | **Windows** | `…-windows-…zip` | double-click `newsphotostalker.bat` |
             | **macOS** | `…-macos-…zip` | run `newsphotostalker` (see below) |
             | **Linux** | `…-linux-…zip` | run `./newsphotostalker` |
 
-            Then open the panel (it opens by itself) and sign in with
-            **`admin` / `admin`** — change it under settings → your account
-            (`ajustes → tu cuenta`). The panel is in Spanish, so button labels
-            are quoted as they appear on screen.
+            Then the panel opens by itself. Sign in with **`admin` / `admin`** and
+            change it under settings → your account (`ajustes → tu cuenta`). The
+            panel is in Spanish.
 
             Your photos and database are created in a `data/` folder **next to the
-            executable**. Back that up and you have backed up everything.
+            launcher**. Back that up and you have backed up everything.
 
-            **Windows** will warn that it does not recognise the app, and Defender
-            may flag it as `Trojan:Script/Wacatac.B!ml`. **It is a false positive.**
-            That `!ml` suffix means a machine-learning guess, not a match against
-            known malware: every PyInstaller program shares the same startup stub,
-            real malware uses it too, and unsigned downloads with no reputation get
-            flagged. The binaries are built in the open by
-            [GitHub Actions](../../actions) from this source — the build log is
-            public, and you can compile it yourself with `python build.py` and
-            compare. Each `.zip` ships a `.sha256` next to it so you can check that
-            what you downloaded is what came out of that build.
+            **Windows** ships as a small portable Python plus a `.bat` launcher —
+            no separate `.exe`, on purpose: Defender was flagging the packaged
+            `.exe` as a false-positive trojan, and a `.bat` that runs `python.exe`
+            (signed by the Python Software Foundation) is not flagged.
 
-            **macOS** will refuse the first launch for the same reason. Either
-            right-click the file → *Open* → *Open*, or run once:
-            `xattr -dr com.apple.quarantine newsphotostalker`
+            **macOS** will refuse the first launch because the binary is unsigned:
+            right-click → *Open* → *Open*, or run once
+            `xattr -dr com.apple.quarantine newsphotostalker`.
 
-            For **Reuters** you need to sign in once from settings → sign in to
-            Reuters (`ajustes → iniciar sesión en Reuters`). On a headless server,
-            sign in on your laptop instead and move the session across with
-            `exportar sesión` / `importar sesión`.
+            For **Reuters**, sign in once from settings → sign in to Reuters
+            (`ajustes → iniciar sesión en Reuters`). On a headless server, sign in
+            on your laptop and move the session with `exportar sesión` /
+            `importar sesión`.
+
+            Each `.zip` ships a `.sha256` so you can verify the download.

@@ -24,10 +24,16 @@ Guía de uso completa. Para una visión rápida, mira el [README](README.md).
 ### La versión descargable de Windows
 
 Descomprime el `.zip` de la [release](../../releases) y haz doble clic en
-`newsphotostalker.exe`. No hay instalador ni hace falta Python: la ventana negra
-que se abre **es** el programa, y cerrarla lo detiene.
+`newsphotostalker.bat`. No hay instalador ni hace falta tener Python: el paquete
+trae dentro su propia copia de Python. La ventana negra que se abre **es** el
+programa, y cerrarla lo detiene.
 
-Junto al `.exe` aparecen, la primera vez:
+No es un `.exe`, y es a propósito: un ejecutable empaquetado saltaba como falso
+positivo en Windows Defender (`Trojan:Script/Wacatac.B!ml`). El `.bat` arranca el
+`python.exe` incluido —firmado por la Python Software Foundation— sobre el código,
+y así no lo marca. En la carpeta está todo a la vista: `python\`, `app\`, `run.py`.
+
+Junto al `.bat` aparecen, la primera vez:
 
 | | |
 |---|---|
@@ -40,8 +46,8 @@ Todo lo tuyo vive ahí: para hacer copia de seguridad o mudarte de ordenador,
 copia esa carpeta. No lo descomprimas dentro de `C:\Archivos de programa`, que
 Windows no deja escribir ahí.
 
-Windows avisará de que no reconoce la aplicación, porque el ejecutable no va
-firmado: *Más información → Ejecutar de todas formas*.
+Nada va firmado (un certificado cuesta dinero), así que la primera vez Windows
+puede pedir una confirmación: *Más información → Ejecutar de todas formas*.
 
 No hay que instalar nada más: Python y Playwright viajan dentro. Para Reuters se
 usa un navegador del sistema — el **Google Chrome** que tengas o, si no lo tienes,

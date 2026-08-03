@@ -18,6 +18,14 @@ import sys
 import threading
 import time
 import webbrowser
+from pathlib import Path
+
+# La carpeta de este fichero, en sys.path, para poder importar ``app``. Hace
+# falta con el Python embebido de la versión portable de Windows: va en modo
+# aislado (su ``._pth``) y no añade el directorio del script por su cuenta, así
+# que sin esto ``from app.main import app`` falla. En una instalación normal ya
+# está, pero repetirlo no molesta.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 HOST = "127.0.0.1"
 #: Primer puerto que se intenta; si está ocupado se prueban los siguientes.
