@@ -142,20 +142,22 @@ def backfill_now(search_id: int) -> None:
     )
 
 
-def reuters_login_now() -> None:
-    """Abre la ventana del login manual de Reuters (botón de Ajustes).
+def reuters_login_now(fase: str = "start") -> None:
+    """Login manual de Reuters en dos pasos (botones de Ajustes).
 
-    Va al pool de hilos porque la espera dura minutos: la petición web tiene que
-    volver enseguida y el estado se consulta luego en la propia página.
+    Va al pool de hilos porque puede esperar por el perfil: la petición web
+    vuelve enseguida y el estado se consulta luego en la propia página.
+    ``fase`` es "start" (abrir el navegador) o "check" (comprobar la sesión).
     """
-    from .ingest.reuters_login import open_login_window
+    from .ingest import reuters_login
 
+    trabajo = reuters_login.finish_login if fase == "check" else reuters_login.start_login
     sched = get_scheduler()
     sched.add_job(
-        open_login_window,
+        trabajo,
         trigger="date",
         run_date=datetime.now(timezone.utc),
-        id="reuters-login",
+        id=f"reuters-login-{fase}",
         replace_existing=True,
         misfire_grace_time=60,
     )

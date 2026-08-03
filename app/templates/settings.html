@@ -100,12 +100,20 @@
     <br>Último intento: <strong>{{ reuters_login.message }}</strong> ({{ reuters_login.updated_at|humanize }}).
     {% endif %}
   </p>
+  {% if reuters_login.awaiting %}
+  {# Paso 2: el navegador está abierto; el usuario entra y confirma aquí. #}
+  <form method="post" action="/reuters/login/check" class="inline">
+    <button class="btn btn-primary">✓ he entrado, comprobar</button>
+  </form>
+  <a href="/settings" class="btn btn-ghost">cancelar</a>
+  {% else %}
   <form method="post" action="/reuters/login" class="inline">
     <button class="btn {{ 'btn-ghost' if reuters_profile else 'btn-primary' }}"
-            {% if reuters_login.running or not browser_name %}disabled{% endif %}>
-      {{ "esperando a que entres…" if reuters_login.running else "iniciar sesión en Reuters" }}
+            {% if reuters_login.busy or not browser_name %}disabled{% endif %}>
+      {{ "comprobando…" if reuters_login.busy else "iniciar sesión en Reuters" }}
     </button>
   </form>
+  {% endif %}
 
   <h2 class="section-title" style="margin-top:22px">Traer la sesión de otro equipo</h2>
   <p class="muted small">

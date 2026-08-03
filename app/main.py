@@ -496,12 +496,15 @@ def reuters_session_import(
 
 @app.post("/reuters/login")
 def reuters_login(user: User = Depends(require_user)):
-    """Abre la ventana del login manual de Reuters (en segundo plano).
+    """Paso 1: abre el navegador normal en el login de Reuters (en 2º plano)."""
+    scheduler.reuters_login_now("start")
+    return RedirectResponse("/settings", status_code=303)
 
-    Es la única ventana que enseña el programa, y con esto ya no hace falta un
-    script aparte: la versión empaquetada se maneja entera desde el panel.
-    """
-    scheduler.reuters_login_now()
+
+@app.post("/reuters/login/check")
+def reuters_login_check(user: User = Depends(require_user)):
+    """Paso 2: cierra el navegador del login y comprueba si la sesión quedó."""
+    scheduler.reuters_login_now("check")
     return RedirectResponse("/settings", status_code=303)
 
 

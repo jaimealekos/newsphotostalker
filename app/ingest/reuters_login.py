@@ -1,18 +1,21 @@
 """Login manual de Reuters con un navegador NORMAL, sin Playwright.
 
-Reuters Connect está tras DataDome, un muro anti-bot que fichajes la huella de un
-navegador automatizado (Playwright conduce Chrome por CDP, y eso se nota) y la
-reputación de la IP. Cuando desconfía, planta un CAPTCHA que se atasca y acaba
-en «El acceso está restringido temporalmente».
+Reuters Connect está tras DataDome, un muro anti-bot que ficha la huella de un
+navegador automatizado (Playwright conduce Chrome por CDP) y la reputación de la
+IP, y planta un CAPTCHA que se atasca: «El acceso está restringido temporalmente».
+La salida es no automatizar el login: se abre el **Chrome/Edge del sistema como un
+navegador cualquiera** —sin CDP, sin banderas de automatización— sobre el mismo
+perfil que usan las búsquedas. DataDome ve un humano y deja resolver el CAPTCHA.
 
-La salida, verificada, es no automatizar el login: se abre el **Chrome (o Edge)
-del sistema como un navegador cualquiera** —sin CDP, sin banderas de
-automatización— apuntando al mismo perfil persistente que usan las búsquedas. Ahí
-DataDome ve un humano y deja resolver el CAPTCHA. La persona inicia sesión y
-cierra la ventana; la sesión queda en el perfil y las búsquedas (headless) la
-reutilizan sin volver a pedir nada.
+En DOS pasos, y a propósito. No se puede saber a ciencia cierta cuándo la persona
+ha terminado: cerrar la ventana no cierra Chrome si sigue en segundo plano (bandeja
+del sistema), así que esperar a que el proceso muera se cuelga. Por eso:
 
-Esta lógica la usan el botón de *ajustes* y ``scripts.login_reuters``.
+  1. «iniciar sesión»  → abre el navegador y devuelve el control enseguida.
+  2. «comprobar»       → cierra ese navegador, mira si la sesión quedó y lo dice.
+
+Multiplataforma: usa el navegador del sistema, así que vale igual en Windows,
+macOS y Linux (con pantalla). Sin pantalla, se trae la sesión con exportar/importar.
 """
 
 from __future__ import annotations
@@ -29,17 +32,27 @@ from .reuters import ReutersAdapter
 
 log = logging.getLogger("reuters-login")
 
-#: Tiempo máximo que se deja la ventana abierta para entrar a mano.
-DEFAULT_WAIT_MINUTES = 15
-#: Espera máxima a que termine una búsqueda en curso (comparten perfil).
-LOCK_WAIT_SECONDS = 180
+#: Espera máxima a que se libere el perfil de una búsqueda en curso.
+LOCK_WAIT_SECONDS = 120
+
+# El navegador que se abrió para el login, para poder cerrarlo al comprobar.
+_PROC: subprocess.Popen | None = None
+_PROC_LOCK = threading.Lock()
 
 
 @dataclass
 class LoginStatus:
-    """Estado del último login, para contarlo en la interfaz."""
+    """Estado del login, para pintarlo en la interfaz.
 
-    state: str = "idle"  # idle|waiting_lock|open|ok|error
+    state:
+      idle          — nada en marcha (o ya terminado; ver message)
+      waiting_lock  — esperando a que una búsqueda suelte el perfil
+      open          — navegador abierto; el usuario entra y luego pulsa «comprobar»
+      checking      — comprobando si la sesión quedó
+      ok / error    — resultado del último intento
+    """
+
+    state: str = "idle"
     message: str = ""
     updated_at: datetime | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
@@ -52,8 +65,14 @@ class LoginStatus:
         log.info("login de Reuters: %s — %s", state, message)
 
     @property
-    def running(self) -> bool:
-        return self.state in ("waiting_lock", "open")
+    def awaiting(self) -> bool:
+        """El navegador está abierto y toca que el usuario pulse «comprobar»."""
+        return self.state == "open"
+
+    @property
+    def busy(self) -> bool:
+        """Hay algo en curso; el botón se desactiva."""
+        return self.state in ("waiting_lock", "checking")
 
 
 STATUS = LoginStatus()
@@ -69,33 +88,28 @@ def _profile_dir(settings) -> Path:
     return profile
 
 
-def open_login_window(wait_minutes: int = DEFAULT_WAIT_MINUTES) -> str:
-    """Abre un Chrome/Edge normal en el login de Reuters y espera a que se cierre.
-
-    Se serializa con las búsquedas (comparten el perfil, y Chromium no admite dos
-    instancias sobre él). Tras cerrar la ventana, comprueba si la sesión quedó.
-    """
-    from .live_base import _limpia_locks, en_hilo_sin_bucle, system_browser
+def start_login() -> str:
+    """Paso 1: abre el navegador normal en el login de Reuters y vuelve."""
+    from .live_base import _limpia_locks, system_browser
     from .runner import _RUN_LOCK
 
     settings = get_settings()
     navegador = system_browser()
     if not navegador:
-        return _fail(
-            "no se ha encontrado Chrome ni Edge; instala uno para poder entrar en Reuters"
-        )
+        return _fail("no se ha encontrado Chrome ni Edge; instala uno para entrar en Reuters")
     binario = navegador[1]
     profile = _profile_dir(settings)
 
+    # Solo se retiene el perfil el instante de arrancar el navegador, no durante
+    # el login (que puede tardar). Si hay una búsqueda usándolo, se espera.
     STATUS.set("waiting_lock", "esperando a que termine lo que esté en curso…")
     if not _RUN_LOCK.acquire(timeout=LOCK_WAIT_SECONDS):
-        return _fail("hay una búsqueda en marcha y no ha terminado a tiempo; inténtalo en un minuto")
+        return _fail("hay una búsqueda en marcha; espera a que acabe e inténtalo otra vez")
     try:
+        _cierra_navegador()  # por si quedó uno de un intento anterior
         _limpia_locks(profile)
         try:
-            # Navegador NORMAL: nada de --enable-automation ni CDP. Un perfil
-            # aparte (el de la app), así que no molesta a tu Chrome de siempre.
-            proceso = subprocess.Popen(
+            proc = subprocess.Popen(
                 [
                     binario,
                     f"--user-data-dir={profile}",
@@ -106,29 +120,61 @@ def open_login_window(wait_minutes: int = DEFAULT_WAIT_MINUTES) -> str:
             )
         except OSError as exc:
             return _fail(f"no se pudo abrir el navegador: {exc}")
+        with _PROC_LOCK:
+            global _PROC
+            _PROC = proc
+    finally:
+        _RUN_LOCK.release()
 
-        STATUS.set(
-            "open",
-            "se ha abierto una ventana de tu navegador: entra en Reuters ahí (resuelve el "
-            f"CAPTCHA si aparece) y CIÉRRALA al terminar. Tienes {wait_minutes} min.",
-        )
-        try:
-            proceso.wait(timeout=wait_minutes * 60)
-        except subprocess.TimeoutExpired:
-            proceso.terminate()
-            return _fail("se agotó el tiempo; cierra la ventana en cuanto termines de entrar")
+    STATUS.set(
+        "open",
+        "entra en Reuters en la ventana que se ha abierto (resuelve el CAPTCHA si aparece) "
+        "hasta ver tu panel, y luego pulsa «he entrado, comprobar».",
+    )
+    return STATUS.message
 
-        # La ventana se cerró. ¿Quedó la sesión guardada en el perfil?
-        if en_hilo_sin_bucle(_sesion_valida, settings):
-            return _ok("sesión iniciada y guardada; las búsquedas ya no pedirán login")
-        return _fail(
-            "no se detectó la sesión. ¿Entraste del todo (hasta ver tu panel de Reuters) "
-            "antes de cerrar la ventana? Si DataDome te bloqueó, espera un rato y reinténtalo."
-        )
+
+def finish_login() -> str:
+    """Paso 2: cierra el navegador del login y comprueba si la sesión quedó."""
+    from .live_base import _limpia_locks, en_hilo_sin_bucle
+    from .runner import _RUN_LOCK
+
+    settings = get_settings()
+    profile = _profile_dir(settings)
+
+    STATUS.set("checking", "comprobando la sesión…")
+    _cierra_navegador()  # el navegador del login suelta el perfil
+    if not _RUN_LOCK.acquire(timeout=LOCK_WAIT_SECONDS):
+        return _fail("hay una búsqueda en marcha; inténtalo en un minuto")
+    try:
+        _limpia_locks(profile)
+        ok = en_hilo_sin_bucle(_sesion_valida, settings)
     except Exception as exc:  # noqa: BLE001 - el botón nunca debe tumbar el servidor
         return _fail(f"{type(exc).__name__}: {exc}")
     finally:
         _RUN_LOCK.release()
+
+    if ok:
+        return _ok("sesión iniciada y guardada; las búsquedas ya no pedirán login")
+    return _fail(
+        "no se detectó la sesión. Asegúrate de haber entrado del todo (hasta ver tu panel de "
+        "Reuters) y vuelve a intentarlo. Si DataDome te bloqueó, espera un rato."
+    )
+
+
+def _cierra_navegador() -> None:
+    """Cierra el navegador que se abrió para el login, si sigue vivo."""
+    global _PROC
+    with _PROC_LOCK:
+        proc = _PROC
+        _PROC = None
+    if proc is None or proc.poll() is not None:
+        return
+    proc.terminate()
+    try:
+        proc.wait(timeout=6)
+    except subprocess.TimeoutExpired:
+        proc.kill()
 
 
 def _sesion_valida(settings) -> bool:
