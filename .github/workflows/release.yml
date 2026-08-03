@@ -105,26 +105,23 @@ jobs:
       - name: Comprobar que el navegador empaquetado arranca
         if: matrix.chromium == 'si'
         # Sin esto, un macOS o un Linux sin Chrome instalado se quedaría sin
-        # Reuters y no nos enteraríamos hasta que lo dijese un usuario.
+        # Reuters y no nos enteraríamos hasta que lo dijese un usuario. El
+        # arranque anterior ya habrá desempaquetado el tarball en data/browsers.
         run: |
-          cd dist/newsphotostalker
-          ./newsphotostalker &
-          PID=$!
-          sleep 12
-          kill $PID 2>/dev/null || true
-          cd ../..
           python - <<'PY'
           import os, sys
           from pathlib import Path
-          bundle = Path("dist/newsphotostalker/_internal/ms-playwright")
-          if not bundle.is_dir():
-              sys.exit("no se ha empaquetado Chromium dentro")
-          os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(bundle.resolve())
+          browsers = Path("dist/newsphotostalker/data/browsers")
+          encontrados = sorted(browsers.glob("chromium-*")) if browsers.is_dir() else []
+          if not encontrados:
+              sys.exit("el arranque no ha desempaquetado Chromium en data/browsers")
+          print("desempaquetado:", [c.name for c in encontrados])
+          os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(browsers.resolve())
           from playwright.sync_api import sync_playwright
           with sync_playwright() as pw:
               b = pw.chromium.launch(headless=True)
               pg = b.new_page(); pg.goto("about:blank")
-              print("Chromium empaquetado arranca:", b.version)
+              print("el Chromium empaquetado arranca:", b.version)
               b.close()
           PY
 

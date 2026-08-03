@@ -39,33 +39,33 @@ BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", REPO_ROOT))
 BASE_DIR = Path(sys.executable).resolve().parent if FROZEN else REPO_ROOT
 
 def _prepara_chromium_empaquetado() -> None:
-    """Deja utilizable el Chromium que viaja dentro (macOS y Linux).
+    """Deja listo el Chromium que viaja dentro (macOS y Linux).
 
-    Dos cosas, y las dos hacen falta:
+    Llega como ``chromium.tar.gz`` —así el tar conserva el bit de ejecución, que
+    PyInstaller pierde al copiar datos— y se desempaqueta UNA vez en
+    ``data/browsers``, junto al ejecutable, que es donde sí se puede escribir.
 
-    * decirle a Playwright dónde está, ANTES de que nadie lo importe — por eso
-      esto vive en el módulo que se carga primero;
-    * devolverle el permiso de ejecución. PyInstaller copia los datos sin bit
-      de ejecutable, así que el binario llega sin permisos y Chromium no
-      arranca. Se hace una sola vez y se deja una marca, que son ~1500 ficheros.
+    Hay que apuntar ``PLAYWRIGHT_BROWSERS_PATH`` antes de que nadie importe
+    Playwright, y por eso esto vive en el módulo que se carga primero.
     """
-    browsers = BUNDLE_DIR / "ms-playwright"
-    if not (FROZEN and browsers.is_dir()):
+    if not FROZEN:
         return
-    os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(browsers))
-    if os.name == "nt":
+    destino = BASE_DIR / "data" / "browsers"
+    tarball = BUNDLE_DIR / "chromium.tar.gz"
+    if destino.is_dir() and any(destino.glob("chromium-*")):
+        os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(destino))
         return
-    marca = BASE_DIR / "data" / ".chromium-listo"
-    if marca.exists():
-        return
+    if not tarball.is_file():
+        return  # paquete sin navegador dentro (Windows): se usa el del sistema
     try:
-        for fichero in browsers.rglob("*"):
-            if fichero.is_file():
-                os.chmod(fichero, 0o755)
-        marca.parent.mkdir(parents=True, exist_ok=True)
-        marca.write_text("permisos aplicados\n", encoding="utf-8")
-    except OSError:
-        pass  # sin permisos para arreglarlo; Playwright dirá qué pasa
+        import tarfile
+
+        destino.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(tarball, "r:gz") as tar:
+            tar.extractall(destino)  # noqa: S202 - tarball propio, generado al compilar
+        os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(destino))
+    except (OSError, tarfile.TarError):
+        pass  # sin navegador incluido; se intentará con el del sistema
 
 
 _prepara_chromium_empaquetado()

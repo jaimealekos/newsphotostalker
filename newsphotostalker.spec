@@ -25,22 +25,20 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules
 # Playwright: hay que llevarse el paquete entero, con su driver (node + JS).
 pw_datas, pw_binaries, pw_hidden = collect_all("playwright")
 
-# Y, fuera de Windows, también su Chromium si está descargado.
+# Y, fuera de Windows, también su Chromium, que build.py ha dejado en un tarball.
 #
 # En Windows no hace falta: siempre hay Edge de serie, y el Chromium de
 # Playwright además no arranca headed allí. En macOS y Linux puede no haber
 # ningún navegador instalado, así que se mete dentro para que el programa
-# funcione nada más descargarlo. El arranque lo encuentra porque
-# app/config.py apunta PLAYWRIGHT_BROWSERS_PATH al propio paquete.
-BROWSERS_DIR = {
-    "darwin": Path.home() / "Library" / "Caches" / "ms-playwright",
-    "linux": Path.home() / ".cache" / "ms-playwright",
-}.get(sys.platform if sys.platform != "win32" else "", None)
-
-if BROWSERS_DIR and BROWSERS_DIR.is_dir() and not os.environ.get("NPS_SIN_CHROMIUM"):
-    for hijo in BROWSERS_DIR.iterdir():
-        if hijo.is_dir() and hijo.name.startswith("chromium"):
-            pw_datas.append((str(hijo), f"ms-playwright/{hijo.name}"))
+# funcione nada más descargarlo.
+#
+# Va como .tar.gz y no como carpeta por dos motivos que se descubrieron
+# compilando: en macOS, PyInstaller intenta re-firmar cada binario Mach-O de los
+# datos y con Chromium.app falla; y al copiar datos pierde el bit de ejecución,
+# que el tar sí conserva. Lo desempaqueta app/config.py en el primer arranque.
+TARBALL = Path("assets/chromium.tar.gz")
+if TARBALL.is_file():
+    pw_datas.append((str(TARBALL), "."))
 
 hiddenimports = [
     *pw_hidden,
