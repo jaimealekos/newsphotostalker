@@ -84,21 +84,6 @@ everything; move it and everything comes along.
 newsphotostalker --host 0.0.0.0 --sin-navegador
 ```
 
-### A note on Windows
-
-The Windows package is **not** a single `.exe`. It is a small copy of Python
-(the official, signed build from python.org) plus a `.bat` that runs the app from
-its source code, all in the folder. That is deliberate: a packaged `.exe` was
-being flagged by Windows Defender as a false-positive trojan
-(`Trojan:Script/Wacatac.B!ml`) — every program built with the usual Python
-packager shares one startup stub that the malware models learned to distrust. A
-`.bat` running the signed `python.exe` has no such stub, so it is not flagged.
-
-Nothing here is signed either way (a certificate costs money), so on first run
-Windows may still ask for a confirmation click. Everything is built in the open
-by [GitHub Actions](../../actions) from this source, and each `.zip` ships a
-`.sha256` so you can verify your download.
-
 ---
 
 ## The agencies

@@ -39,11 +39,11 @@ BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", REPO_ROOT))
 BASE_DIR = Path(sys.executable).resolve().parent if FROZEN else REPO_ROOT
 
 # La versión "portable" de Windows no es un .exe empaquetado sino un Python
-# embebido que un .bat arranca sobre el código (así Defender no marca el arranque
-# de PyInstaller como hacía con el .exe). No está FROZEN, pero al usuario hay que
-# tratarla igual: escribirle la configuración en el primer arranque en vez de
-# caer al ejemplo, que va en modo mock. El .bat lo señala con NPS_PORTABLE=1; un
-# desarrollador ejecutando run.py a mano no lleva esa marca y no se le toca nada.
+# embebido que un .bat arranca sobre el código. No está FROZEN, pero al usuario
+# hay que tratarla igual: escribirle la configuración en el primer arranque en
+# vez de caer al ejemplo, que va en modo mock. El .bat lo señala con
+# NPS_PORTABLE=1; un desarrollador ejecutando run.py a mano no lleva esa marca y
+# no se le toca nada.
 # BASE_DIR ya apunta bien (REPO_ROOT = la carpeta del .bat), así que data/ y la
 # config caen junto al lanzador sin más cambios.
 PORTABLE = FROZEN or bool(os.environ.get("NPS_PORTABLE"))

@@ -48,8 +48,7 @@ jobs:
 
       - name: PyInstaller (solo macOS y Linux)
         if: runner.os != 'Windows'
-        # Windows ya no usa PyInstaller: sale como versión portable con un .bat,
-        # justamente para no arrastrar el arranque que Defender marca.
+        # Windows no usa PyInstaller: sale como versión portable con un .bat.
         run: pip install pyinstaller
 
       - name: Chromium para empaquetarlo (macOS y Linux)
@@ -136,28 +135,10 @@ jobs:
           rm -rf dist/newsphotostalker/data dist/newsphotostalker/config.local.yaml
           python build.py --solo-zip
 
-      - name: Huella SHA-256 del paquete
-        # Para que cualquiera compruebe que lo descargado es lo que salió de aquí.
-        shell: bash
-        run: |
-          cd dist
-          for z in *.zip; do
-            python -c "
-          import hashlib, sys
-          from pathlib import Path
-          z = Path(sys.argv[1])
-          h = hashlib.sha256(z.read_bytes()).hexdigest()
-          Path(z.name + '.sha256').write_text(f'{h}  {z.name}\n', encoding='utf-8')
-          print(h, z.name)
-          " "$z"
-          done
-
       - uses: actions/upload-artifact@v4
         with:
           name: newsphotostalker-${{ matrix.nombre }}
-          path: |
-            dist/*.zip
-            dist/*.sha256
+          path: dist/*.zip
 
   publicar:
     needs: paquete
@@ -170,9 +151,7 @@ jobs:
       - name: Publicar la release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            paquetes/**/*.zip
-            paquetes/**/*.sha256
+          files: paquetes/**/*.zip
           generate_release_notes: true
           body: |
             Download the package for your system, unzip it and run it. Nothing to install.
@@ -180,8 +159,8 @@ jobs:
             | System | File | Run |
             |---|---|---|
             | **Windows** | `…-windows-…zip` | double-click `newsphotostalker.bat` |
-            | **macOS** | `…-macos-…zip` | run `newsphotostalker` (see below) |
-            | **Linux** | `…-linux-…zip` | run `./newsphotostalker` |
+            | **macOS** | `…-macos-…zip` | right-click `newsphotostalker` → *Open* → *Open* |
+            | **Linux** | `…-linux-…zip` | `./newsphotostalker` |
 
             Then the panel opens by itself. Sign in with **`admin` / `admin`** and
             change it under settings → your account (`ajustes → tu cuenta`). The
@@ -190,18 +169,7 @@ jobs:
             Your photos and database are created in a `data/` folder **next to the
             launcher**. Back that up and you have backed up everything.
 
-            **Windows** ships as a small portable Python plus a `.bat` launcher —
-            no separate `.exe`, on purpose: Defender was flagging the packaged
-            `.exe` as a false-positive trojan, and a `.bat` that runs `python.exe`
-            (signed by the Python Software Foundation) is not flagged.
-
-            **macOS** will refuse the first launch because the binary is unsigned:
-            right-click → *Open* → *Open*, or run once
-            `xattr -dr com.apple.quarantine newsphotostalker`.
-
             For **Reuters**, sign in once from settings → sign in to Reuters
             (`ajustes → iniciar sesión en Reuters`). On a headless server, sign in
             on your laptop and move the session with `exportar sesión` /
             `importar sesión`.
-
-            Each `.zip` ships a `.sha256` so you can verify the download.

@@ -70,12 +70,6 @@ Tus fotos, tu base de datos y la sesión del navegador se crean en una carpeta
 **`data/` junto al lanzador**. Copia esa carpeta y tendrás copia de todo. No lo
 descomprimas dentro de `C:\Archivos de programa`, que Windows no deja escribir ahí.
 
-Nada va firmado (un certificado cuesta dinero), así que la primera vez Windows
-puede pedir una confirmación de «aplicación no reconocida». En Windows es un `.bat`
-con un Python propio en vez de un `.exe`, para que Defender no lo marque como falso
-positivo. Todo se compila a la vista con [GitHub Actions](../../actions), y cada
-`.zip` lleva su `.sha256` para verificar la descarga.
-
 ---
 
 ## Las agencias

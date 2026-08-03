@@ -12,13 +12,10 @@ GitHub Actions.
 
 Dos formas de empaquetar, según el sistema:
 
-* **Windows → versión portable**: un Python embebido (el de python.org, firmado)
-  que un ``.bat`` arranca sobre el código. NO se usa PyInstaller, a propósito:
-  Windows Defender marca el arranque de los ejecutables de PyInstaller como
-  ``Trojan:Script/Wacatac.B!ml`` —un falso positivo heurístico—, y un ``.bat``
-  que lanza ``python.exe`` no tiene ese arranque, así que no salta.
+* **Windows → versión portable**: un Python embebido (el de python.org) que un
+  ``.bat`` arranca sobre el código. No se usa PyInstaller.
 * **macOS y Linux → PyInstaller**: un ejecutable de un archivo por carpeta
-  (*onedir*). Ahí Defender no es problema. Ver ``newsphotostalker.spec``.
+  (*onedir*). Ver ``newsphotostalker.spec``.
 
 Opciones útiles al desarrollar:
 
@@ -82,8 +79,8 @@ def _descarga(url: str, destino: Path) -> None:
 def build_portable_windows(salida: Path) -> Path:
     """Monta la versión portable: Python embebido + dependencias + código + .bat.
 
-    El resultado se ejecuta con ``python.exe`` (firmado por la Python Software
-    Foundation), no con un ejecutable propio, así que Defender no lo marca.
+    El resultado se ejecuta con el ``python.exe`` embebido sobre el código, no con
+    un ejecutable propio.
     """
     dest = salida / NOMBRE
     shutil.rmtree(dest, ignore_errors=True)

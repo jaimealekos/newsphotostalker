@@ -2,8 +2,7 @@
 """Empaquetado de newsphotostalker para macOS y Linux (PyInstaller, onedir).
 
 Windows NO usa esto: sale como versión portable (Python embebido + .bat), que
-build.py monta aparte, para no arrastrar el arranque de PyInstaller que Defender
-marca como falso positivo. Aquí solo se compilan macOS y Linux.
+build.py monta aparte. Aquí solo se compilan macOS y Linux.
 
 Se genera una CARPETA, no un fichero único, a propósito:
 
