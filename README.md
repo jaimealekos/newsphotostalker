@@ -49,7 +49,11 @@ curl -fsSL https://raw.githubusercontent.com/jaimealekos/newsphotostalker/main/i
 
 A terminal window opens (**that window is the program** — closing it stops it)
 and the panel opens in your browser. Sign in with **`admin` / `admin`** and
-change it in *ajustes*.
+change it in the settings page.
+
+> The panel itself is in Spanish. Wherever this page points you at a button, the
+> label you will actually see on screen is quoted after it — settings is
+> `ajustes`, and so on.
 
 Your photos, your database and your browser session are created in a **`data/`
 folder next to the executable**. Back that folder up and you have backed up
@@ -94,8 +98,9 @@ is between you and the agency.
 ### Signing in to Reuters
 
 Reuters Connect requires a session and sits behind an anti-bot wall, so you sign
-in **by hand, once**, from *ajustes → iniciar sesión en Reuters*. A browser
-window opens, you sign in there, and the session is kept.
+in **by hand, once**, from settings → sign in to Reuters
+(`ajustes → iniciar sesión en Reuters`). A browser window opens, you sign in
+there, and the session is kept.
 
 **That is the only window you will ever see.** From then on searches run
 headless. Your Reuters password is never written to any file.
@@ -103,8 +108,9 @@ headless. Your Reuters password is never written to any file.
 It uses a browser you already have — Chrome, Edge, Brave or Chromium. On macOS
 and Linux one is bundled, in case you have none.
 
-**No screen on that machine?** Sign in on your laptop, then *ajustes → exportar
-sesión* there and *importar sesión* on the server. What travels is a small file
+**No screen on that machine?** Sign in on your laptop, export the session there
+(`exportar sesión`) and import it on the server (`importar sesión`), both under
+settings. What travels is a small file
 with the session already decrypted, so it works across Windows, macOS and Linux.
 
 ---

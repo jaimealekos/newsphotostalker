@@ -159,7 +159,9 @@ jobs:
             | **Linux** | `…-linux-…zip` | run `./newsphotostalker` |
 
             Then open the panel (it opens by itself) and sign in with
-            **`admin` / `admin`** — change it in *ajustes → tu cuenta*.
+            **`admin` / `admin`** — change it under settings → your account
+            (`ajustes → tu cuenta`). The panel is in Spanish, so button labels
+            are quoted as they appear on screen.
 
             Your photos and database are created in a `data/` folder **next to the
             executable**. Back that up and you have backed up everything.
@@ -171,6 +173,7 @@ jobs:
             right-click the file → *Open* → *Open*, or run once:
             `xattr -dr com.apple.quarantine newsphotostalker`
 
-            For **Reuters** you need to sign in once from *ajustes → iniciar sesión
-            en Reuters*. On a headless server, sign in on your laptop instead and
-            move the session across with *exportar sesión* / *importar sesión*.
+            For **Reuters** you need to sign in once from settings → sign in to
+            Reuters (`ajustes → iniciar sesión en Reuters`). On a headless server,
+            sign in on your laptop instead and move the session across with
+            `exportar sesión` / `importar sesión`.
