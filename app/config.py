@@ -38,11 +38,37 @@ FROZEN = bool(getattr(sys, "frozen", False))
 BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", REPO_ROOT))
 BASE_DIR = Path(sys.executable).resolve().parent if FROZEN else REPO_ROOT
 
-# En macOS y Linux el paquete puede traer dentro su propio Chromium (allí puede
-# no haber ningún navegador instalado). Hay que decírselo a Playwright ANTES de
-# que lo importe nadie, así que se hace aquí, en el módulo que carga primero.
-if FROZEN and (BUNDLE_DIR / "ms-playwright").is_dir():
-    os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(BUNDLE_DIR / "ms-playwright"))
+def _prepara_chromium_empaquetado() -> None:
+    """Deja utilizable el Chromium que viaja dentro (macOS y Linux).
+
+    Dos cosas, y las dos hacen falta:
+
+    * decirle a Playwright dónde está, ANTES de que nadie lo importe — por eso
+      esto vive en el módulo que se carga primero;
+    * devolverle el permiso de ejecución. PyInstaller copia los datos sin bit
+      de ejecutable, así que el binario llega sin permisos y Chromium no
+      arranca. Se hace una sola vez y se deja una marca, que son ~1500 ficheros.
+    """
+    browsers = BUNDLE_DIR / "ms-playwright"
+    if not (FROZEN and browsers.is_dir()):
+        return
+    os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(browsers))
+    if os.name == "nt":
+        return
+    marca = BASE_DIR / "data" / ".chromium-listo"
+    if marca.exists():
+        return
+    try:
+        for fichero in browsers.rglob("*"):
+            if fichero.is_file():
+                os.chmod(fichero, 0o755)
+        marca.parent.mkdir(parents=True, exist_ok=True)
+        marca.write_text("permisos aplicados\n", encoding="utf-8")
+    except OSError:
+        pass  # sin permisos para arreglarlo; Playwright dirá qué pasa
+
+
+_prepara_chromium_empaquetado()
 
 
 @dataclass

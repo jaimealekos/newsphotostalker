@@ -56,6 +56,23 @@ cd "${DESTINO}/app" && exec ./newsphotostalker "\$@"
 LANZADOR
 chmod +x "${BIN}/newsphotostalker"
 
+# El Chromium que viaja dentro necesita unas cuantas bibliotecas del sistema que
+# un servidor pelado no trae. Se comprueba aquí para que no se descubra el día
+# que se intente usar Reuters.
+if [ "${SISTEMA}" = linux ]; then
+  NAVEGADOR=$(find "${DESTINO}/app/_internal/ms-playwright" -name headless_shell -o -name chrome 2>/dev/null | head -1)
+  if [ -n "${NAVEGADOR}" ] && command -v ldd >/dev/null 2>&1; then
+    if ldd "${NAVEGADOR}" 2>/dev/null | grep -q "not found"; then
+      echo
+      echo "  AVISO: al navegador incluido le faltan bibliotecas del sistema."
+      echo "  AP, Getty y AFP funcionarán igual; Reuters no. Para arreglarlo:"
+      echo "      sudo apt install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \\"
+      echo "          libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 \\"
+      echo "          libxfixes3 libxrandr2 libgbm1 libasound2"
+    fi
+  fi
+fi
+
 echo
 echo "Listo. Arráncalo con:"
 echo "    newsphotostalker"

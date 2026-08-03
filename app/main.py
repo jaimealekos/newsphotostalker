@@ -473,14 +473,19 @@ def reuters_session_export(user: User = Depends(require_user)):
 
 
 @app.post("/reuters/session/import")
-async def reuters_session_import(
+def reuters_session_import(
     user: User = Depends(require_user), sesion: UploadFile = File(...)
 ):
-    """Instala aquí una sesión exportada en otro equipo."""
+    """Instala aquí una sesión exportada en otro equipo.
+
+    Síncrona a propósito: por dentro conduce Playwright con su API de bloqueo,
+    que estalla si se la llama desde el bucle de eventos. Declarada así, FastAPI
+    la ejecuta en un hilo aparte y no hay conflicto.
+    """
     from .ingest import reuters_session
 
     try:
-        estado = reuters_session.from_json(await sesion.read())
+        estado = reuters_session.from_json(sesion.file.read())
         mensaje = reuters_session.con_navegador_libre(reuters_session.import_state, estado)
     except reuters_session.SessionError as exc:
         mensaje = str(exc)

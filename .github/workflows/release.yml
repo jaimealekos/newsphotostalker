@@ -1,0 +1,179 @@
+# Compila el programa para Windows, macOS y Linux, comprueba en CADA sistema que
+# el ejecutable arranca de verdad, y cuelga los tres paquetes de una release.
+#
+# El objetivo es que nadie compile: ni quien lo descarga ni quien lo publica.
+#
+#     git tag v1.1.0 && git push origin v1.1.0
+#
+# También se puede lanzar a mano desde Actions ("Run workflow"); entonces los
+# paquetes quedan como artefactos de la ejecución en vez de como release.
+#
+# Nota: los binarios NO se pueden compilar cruzados. Cada sistema se compila en
+# su propio runner, y por eso esta es la única forma de probar macOS y Linux.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # para crear la release
+
+jobs:
+  paquete:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            nombre: windows
+            # En Windows siempre hay Edge, así que no se empaqueta Chromium:
+            # ahorra ~150 MB de descarga.
+            chromium: "no"
+          - os: macos-latest
+            nombre: macos
+            chromium: "si"
+          - os: ubuntu-latest
+            nombre: linux
+            chromium: "si"
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.nombre }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Descargar Chromium para empaquetarlo
+        if: matrix.chromium == 'si'
+        # Solo macOS y Linux: allí puede no haber ningún navegador instalado y
+        # el programa tiene que funcionar nada más descargarlo.
+        run: python -m playwright install chromium
+
+      - name: Pruebas
+        run: python -m pytest tests/ -q
+
+      - name: Compilar
+        env:
+          # La variable la lee el .spec para decidir si mete Chromium dentro.
+          NPS_SIN_CHROMIUM: ${{ matrix.chromium == 'no' && '1' || '' }}
+        run: python build.py --sin-zip
+
+      - name: Comprobar que el ejecutable arranca (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $proc = Start-Process "dist/newsphotostalker/newsphotostalker.exe" -PassThru
+          $ok = $false
+          foreach ($i in 1..40) {
+            Start-Sleep -Seconds 2
+            try {
+              if ((Invoke-WebRequest "http://127.0.0.1:8010/login" -UseBasicParsing -TimeoutSec 5).StatusCode -eq 200) { $ok = $true; break }
+            } catch { }
+          }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          if (-not $ok) { throw "el ejecutable no respondió en el puerto 8010" }
+          if (-not (Test-Path "dist/newsphotostalker/data/app.db")) { throw "no creó data/app.db junto al ejecutable" }
+          if (-not (Test-Path "dist/newsphotostalker/config.local.yaml")) { throw "no creó config.local.yaml" }
+          Write-Host "arranca y crea sus datos donde debe"
+
+      - name: Comprobar que el ejecutable arranca (macOS y Linux)
+        if: runner.os != 'Windows'
+        run: |
+          ./dist/newsphotostalker/newsphotostalker &
+          PID=$!
+          ok=0
+          for i in $(seq 1 40); do
+            sleep 2
+            if curl -fsS http://127.0.0.1:8010/login > /dev/null 2>&1; then ok=1; break; fi
+          done
+          kill $PID 2>/dev/null || true
+          [ "$ok" = "1" ] || { echo "el ejecutable no respondió en el puerto 8010"; exit 1; }
+          [ -f dist/newsphotostalker/data/app.db ] || { echo "no creó data/app.db junto al ejecutable"; exit 1; }
+          [ -f dist/newsphotostalker/config.local.yaml ] || { echo "no creó config.local.yaml"; exit 1; }
+          echo "arranca y crea sus datos donde debe"
+
+      - name: Comprobar que el navegador empaquetado arranca
+        if: matrix.chromium == 'si'
+        # Sin esto, un macOS o un Linux sin Chrome instalado se quedaría sin
+        # Reuters y no nos enteraríamos hasta que lo dijese un usuario.
+        run: |
+          cd dist/newsphotostalker
+          ./newsphotostalker &
+          PID=$!
+          sleep 12
+          kill $PID 2>/dev/null || true
+          cd ../..
+          python - <<'PY'
+          import os, sys
+          from pathlib import Path
+          bundle = Path("dist/newsphotostalker/_internal/ms-playwright")
+          if not bundle.is_dir():
+              sys.exit("no se ha empaquetado Chromium dentro")
+          os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(bundle.resolve())
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as pw:
+              b = pw.chromium.launch(headless=True)
+              pg = b.new_page(); pg.goto("about:blank")
+              print("Chromium empaquetado arranca:", b.version)
+              b.close()
+          PY
+
+      - name: Comprimir, ya sin los restos de la prueba
+        shell: bash
+        run: |
+          rm -rf dist/newsphotostalker/data dist/newsphotostalker/config.local.yaml
+          python build.py --solo-zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: newsphotostalker-${{ matrix.nombre }}
+          path: dist/*.zip
+
+  publicar:
+    needs: paquete
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: paquetes
+      - name: Publicar la release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: paquetes/**/*.zip
+          generate_release_notes: true
+          body: |
+            Download the package for your system, unzip it and run it. Nothing to install.
+
+            | System | File | Notes |
+            |---|---|---|
+            | **Windows** | `…-windows-…zip` | double-click `newsphotostalker.exe` |
+            | **macOS** | `…-macos-…zip` | run `newsphotostalker` (see below) |
+            | **Linux** | `…-linux-…zip` | run `./newsphotostalker` |
+
+            Then open the panel (it opens by itself) and sign in with
+            **`admin` / `admin`** — change it in *ajustes → tu cuenta*.
+
+            Your photos and database are created in a `data/` folder **next to the
+            executable**. Back that up and you have backed up everything.
+
+            **Windows** will warn that it does not recognise the app: the binary is
+            not signed. *More info → Run anyway*.
+
+            **macOS** will refuse the first launch for the same reason. Either
+            right-click the file → *Open* → *Open*, or run once:
+            `xattr -dr com.apple.quarantine newsphotostalker`
+
+            For **Reuters** you need to sign in once from *ajustes → iniciar sesión
+            en Reuters*. On a headless server, sign in on your laptop instead and
+            move the session across with *exportar sesión* / *importar sesión*.
