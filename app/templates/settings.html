@@ -81,9 +81,15 @@
   <h2 class="section-title" style="margin-top:22px">Sesión de Reuters</h2>
   <p class="muted small">
     Reuters es la única agencia que necesita tu cuenta. Entras <strong>a mano una vez</strong>:
-    se abre una ventana de Chrome, inicias sesión ahí y queda guardada. No hace falta escribir
-    tu contraseña en ningún fichero, y a partir de ese momento las búsquedas corren sin abrir
+    se abre tu navegador normal en el login de Reuters, inicias sesión ahí (resuelve el CAPTCHA
+    si aparece) y <strong>cierras la ventana</strong>. La sesión queda guardada; no hace falta
+    escribir tu contraseña en ningún fichero, y a partir de ahí las búsquedas corren sin abrir
     ninguna ventana. Si algún día caduca, vuelve a pulsar el botón.
+  </p>
+  <p class="muted small">
+    Se usa tu navegador tal cual, sin automatizar, a propósito: el muro anti-bot de Reuters
+    (DataDome) bloquea los navegadores automatizados. Si aun así te bloquea («acceso restringido
+    temporalmente»), suele ser cosa de la reputación de tu IP: espera un rato y reinténtalo.
   </p>
   <p class="muted small">
     Navegador: <strong>{{ browser_name or "ninguno encontrado" }}</strong>{% if not browser_name %}

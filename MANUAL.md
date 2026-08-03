@@ -187,24 +187,33 @@ queda en el perfil del navegador y las ejecuciones la reutilizan. Los campos
 `username`/`password` de la configuración son opcionales: solo sirven si prefieres
 que el programa intente el login automático, que DataDome suele frenar.
 
-Se abre Chrome en la página de login; entra (email, contraseña y el deslizador si
-aparece). La sesión queda en el perfil (`data/browser/`) y se reutiliza. Si caduca,
-repite el login.
+Se abre tu navegador (Chrome o Edge) en la página de login. Entra —email,
+contraseña y el CAPTCHA de DataDome si aparece— hasta ver tu panel de Reuters, y
+**cierra la ventana**. La sesión queda en el perfil (`data/browser/reuters`) y se
+reutiliza; si caduca, repite el login.
 
-**Ese es el único momento en que verás una ventana.** Las ejecuciones normales van
-en headless: no se abre nada. Verificado en agosto de 2026 que DataDome deja pasar
-el headless nuevo de Chrome cuando la sesión ya está guardada en el perfil — lo que
-bloqueaba era el headless del Chromium que empaqueta Playwright. Se controla con
-`playwright.headless` (por defecto `true`); `login_reuters` abre la ventana pase lo
-que pase, porque ahí hace falta una persona.
+**Se usa tu navegador tal cual, sin automatizar, a propósito.** DataDome ficha la
+huella de un navegador conducido por software y planta un CAPTCHA que se atasca; un
+navegador humano normal, sobre un perfil aparte de la app, lo pasa. Ese es el único
+momento en que verás una ventana: las búsquedas van en headless y no abren nada.
+
+### Si DataDome te bloquea («acceso restringido temporalmente»)
+
+DataDome también mira la **reputación de la IP**. Si desde tu red se ha golpeado
+mucho a Reuters de forma automatizada, puede bloquear un rato aunque el navegador
+sea normal. No es un fallo del programa:
+
+- **Espera** — el bloqueo es temporal (de minutos a unas horas) y se levanta solo.
+- Reintenta el login cuando se calme.
+- Si tienes prisa, entra desde **otra red** (p. ej. compartiendo datos del móvil):
+  inicia sesión ahí y trae la sesión con *exportar sesión* / *importar sesión*.
 
 Consejos:
 
 - Deja `playwright.executable_path` en `null`: en Windows la app coge sola el
-  **Google Chrome** instalado, que además da mejor huella que el Chromium de
-  Playwright (y ese, en Windows, ni arranca headed).
-- En un **servidor sin pantalla** ya no hace falta Xvfb para las ejecuciones
-  normales; solo para el login manual, por VNC/noVNC (ver [`deploy/`](deploy/)).
+  **Google Chrome** o el **Edge** instalado.
+- En un **servidor sin pantalla** no hay dónde abrir la ventana; usa el traspaso
+  de sesión desde un equipo con pantalla (*exportar* / *importar*).
 
 ## Modo mock vs live
 
