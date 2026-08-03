@@ -142,6 +142,25 @@ def backfill_now(search_id: int) -> None:
     )
 
 
+def reuters_login_now() -> None:
+    """Abre la ventana del login manual de Reuters (botón de Ajustes).
+
+    Va al pool de hilos porque la espera dura minutos: la petición web tiene que
+    volver enseguida y el estado se consulta luego en la propia página.
+    """
+    from .ingest.reuters_login import open_login_window
+
+    sched = get_scheduler()
+    sched.add_job(
+        open_login_window,
+        trigger="date",
+        run_date=datetime.now(timezone.utc),
+        id="reuters-login",
+        replace_existing=True,
+        misfire_grace_time=60,
+    )
+
+
 def run_all_now() -> None:
     """Refresca TODAS las búsquedas activas al instante (desde Ajustes)."""
     sched = get_scheduler()

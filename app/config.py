@@ -9,6 +9,7 @@ variables (useful for deployment / secrets managers), e.g. ``REUTERS_PASSWORD``.
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -22,6 +23,20 @@ GETTY_ROUTED = {"getty", "afp"}
 AGENCIES = ["ap", "reuters", "afp", "getty"]
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# --- dos raíces distintas, y la diferencia importa al empaquetar -----------
+# BUNDLE_DIR  lo que viaja DENTRO del programa y es de solo lectura: plantillas,
+#             estáticos, config.example.yaml. Empaquetado vive en _internal/.
+# BASE_DIR    lo que es del usuario y hay que poder escribir: config.local.yaml,
+#             data/ (base de datos, fotos, perfil del navegador). Empaquetado,
+#             la carpeta donde está el .exe; en desarrollo, la del repositorio.
+#
+# Mezclarlas fue el primer fallo previsto del empaquetado: con PyInstaller,
+# __file__ apunta al directorio del bundle, así que los datos se habrían escrito
+# ahí en vez de junto al ejecutable.
+FROZEN = bool(getattr(sys, "frozen", False))
+BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", REPO_ROOT))
+BASE_DIR = Path(sys.executable).resolve().parent if FROZEN else REPO_ROOT
 
 
 @dataclass
@@ -66,7 +81,7 @@ class AlertsConfig:
 @dataclass
 class Settings:
     mode: str = "mock"  # "mock" | "live"
-    data_dir: Path = field(default_factory=lambda: REPO_ROOT / "data")
+    data_dir: Path = field(default_factory=lambda: BASE_DIR / "data")
     db_url: str = "sqlite:///./data/app.db"
     default_cadence_minutes: int = 360
     # Refresco periódico de la sesión de Reuters para que no caduque (mantiene
@@ -93,13 +108,84 @@ class Settings:
 
 
 def _config_path() -> Path:
+    """La configuración que manda: la del usuario, junto al ejecutable.
+
+    Empaquetado, si no existe se crea en el primer arranque (ver
+    :func:`_write_first_run_config`), porque el ejemplo que viaja dentro arranca
+    en modo ``mock`` y un recién llegado se encontraría con fotos inventadas.
+    """
     override = os.environ.get("APP_CONFIG")
     if override:
         return Path(override)
-    local = REPO_ROOT / "config.local.yaml"
+    local = BASE_DIR / "config.local.yaml"
+    if not local.exists() and FROZEN:
+        _write_first_run_config(local)
     if local.exists():
         return local
-    return REPO_ROOT / "config.example.yaml"
+    return BUNDLE_DIR / "config.example.yaml"
+
+
+FIRST_RUN_CONFIG = """\
+# newsphotostalker — configuración local.
+# Se creó sola en el primer arranque; edítala y reinicia el programa.
+# Tus fotos y tu base de datos están en la carpeta data/, aquí al lado.
+
+# live = fotos reales de las agencias. mock = fotos sintéticas, para probar.
+mode: live
+
+data_dir: ./data
+db_url: sqlite:///./data/app.db
+
+agencies:
+  # AP y Getty (y AFP, que se distribuye por Getty) no piden credenciales.
+  ap:      {enabled: true}
+  getty:   {enabled: true}
+  # Reuters SÍ necesita tu cuenta. No hace falta escribirla aquí: entra desde
+  # «ajustes → iniciar sesión en Reuters», que abre una ventana del navegador y
+  # deja la sesión guardada. Rellena esto solo si prefieres el login automático.
+  reuters: {enabled: true, username: null, password: null}
+
+playwright:
+  # true = las búsquedas corren SIN abrir ninguna ventana. La única ventana que
+  # verás es la del login manual de Reuters, que la abre igualmente.
+  headless: true
+  timeout_ms: 45000
+  user_data_dir: ./data/browser
+  # null = usa el Google Chrome instalado (necesario para el login de Reuters).
+  executable_path: null
+
+# Aviso opcional por webhook cuando una agencia deja de funcionar.
+alerts:
+  enabled: false
+  webhook_url: null
+"""
+
+
+def _read_config(path: Path) -> str:
+    """Lee la configuración sin depender de la codificación regional.
+
+    ``read_text()`` a secas usa la del sistema, que en un Windows español es
+    cp1252, y la config que escribe el programa va en UTF-8: sin esto, el .exe
+    moría en el primer arranque leyendo su propio fichero recién creado. Se
+    prueba también cp1252 por si alguien la ha reescrito con el Bloc de notas.
+    """
+    for encoding in ("utf-8", "cp1252"):
+        try:
+            return path.read_text(encoding=encoding)
+        except UnicodeDecodeError:
+            continue
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def _write_first_run_config(path: Path) -> None:
+    """Deja una config editable junto al ejecutable la primera vez."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(FIRST_RUN_CONFIG, encoding="utf-8")
+    except OSError:
+        # Carpeta de solo lectura (p. ej. Archivos de programa): se sigue con el
+        # ejemplo empaquetado en vez de reventar el arranque.
+        pass
 
 
 def _env_override(agency: str, cred: AgencyCredentials) -> AgencyCredentials:
@@ -119,11 +205,11 @@ def get_settings() -> Settings:
     path = _config_path()
     raw: dict = {}
     if path.exists():
-        raw = yaml.safe_load(path.read_text()) or {}
+        raw = yaml.safe_load(_read_config(path)) or {}
 
     data_dir = Path(raw.get("data_dir", "./data"))
     if not data_dir.is_absolute():
-        data_dir = (REPO_ROOT / data_dir).resolve()
+        data_dir = (BASE_DIR / data_dir).resolve()
 
     agencies: dict[str, AgencyCredentials] = {}
     for name, conf in (raw.get("agencies") or {}).items():

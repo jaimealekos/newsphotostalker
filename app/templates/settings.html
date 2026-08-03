@@ -77,6 +77,35 @@
     </tbody>
   </table>
   <p class="muted small">AFP y Getty se descargan ambos a través del servicio de distribución de Getty.</p>
+
+  <h2 class="section-title" style="margin-top:22px">Sesión de Reuters</h2>
+  <p class="muted small">
+    Reuters es la única agencia que necesita tu cuenta. Entras <strong>a mano una vez</strong>:
+    se abre una ventana de Chrome, inicias sesión ahí y queda guardada. No hace falta escribir
+    tu contraseña en ningún fichero, y a partir de ese momento las búsquedas corren sin abrir
+    ninguna ventana. Si algún día caduca, vuelve a pulsar el botón.
+  </p>
+  <p class="muted small">
+    Perfil del navegador: <strong>{{ "guardado" if reuters_profile else "todavía no hay" }}</strong>.
+    {% if reuters_login.updated_at %}
+    Último intento: <strong>{{ reuters_login.message }}</strong> ({{ reuters_login.updated_at|humanize }}).
+    {% endif %}
+  </p>
+  <form method="post" action="/reuters/login" class="inline">
+    <button class="btn {{ 'btn-ghost' if reuters_profile else 'btn-primary' }}"
+            {% if reuters_login.running %}disabled{% endif %}>
+      {{ "esperando a que entres…" if reuters_login.running else "iniciar sesión en Reuters" }}
+    </button>
+  </form>
+</section>
+
+<section class="form-card">
+  <h2 class="section-title">Dónde están tus cosas</h2>
+  <p class="muted small">
+    Las fotos, la base de datos y la sesión del navegador viven en
+    <span class="mono">{{ data_dir }}</span>. Para llevarte todo a otro ordenador, copia esa
+    carpeta junto al programa.
+  </p>
 </section>
 
 {% endblock %}

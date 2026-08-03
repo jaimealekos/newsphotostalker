@@ -70,6 +70,33 @@ caminos de ingesta:
 
 ## 🚀 Puesta en marcha
 
+### En Windows, sin instalar nada (recomendado)
+
+1. Descarga el **`.zip`** de la última [release](../../releases) y descomprímelo
+   donde quieras: el Escritorio, un disco externo, da igual — pero **no** dentro
+   de `C:\Archivos de programa`, que Windows no deja escribir ahí.
+2. Doble clic en **`newsphotostalker.exe`**. Se abre una ventana negra (es el
+   programa: **déjala abierta**, cerrarla lo detiene) y, sola, la pestaña del
+   panel en tu navegador.
+3. Entra con **`admin` / `admin`** y cámbialo en *ajustes → tu cuenta*.
+
+La primera vez, junto al `.exe` aparecen un `config.local.yaml` que puedes editar
+y una carpeta **`data/`** con la base de datos, las fotos y la sesión del
+navegador. **Todo lo tuyo está ahí**: para mudarte de ordenador o hacer copia de
+seguridad, copia esa carpeta.
+
+Dos cosas que conviene saber:
+
+- **Windows te dirá que no reconoce la aplicación.** El ejecutable no está
+  firmado (una firma cuesta dinero). *Más información → Ejecutar de todas formas*.
+- **Para Reuters necesitas [Google Chrome](https://www.google.com/chrome/)
+  instalado**, y entrar una vez desde *ajustes → iniciar sesión en Reuters*: se
+  abre una ventana, inicias sesión ahí y se guarda. **Es la única ventana que
+  verás**: a partir de ahí las búsquedas corren sin abrir nada. AP, Getty y AFP
+  no necesitan cuenta.
+
+### Desde el código
+
 Necesitas **Python 3.10+**. Para el modo real de Reuters, **Google Chrome** instalado.
 
 ```bash
@@ -81,17 +108,27 @@ pip install -r requirements.txt
 
 cp config.example.yaml config.local.yaml  # arranca en modo "mock" (sin credenciales)
 python -m scripts.seed                     # siembra las 3 búsquedas de ejemplo
-uvicorn app.main:app                        # http://127.0.0.1:8000
+python run.py                              # elige puerto libre y abre el panel
 ```
 
 Entra con **`admin` / `admin`** (cámbialo en *ajustes → tu cuenta*). En modo `mock`
 las fotos son sintéticas, así que puedes probar TODO el sistema sin credenciales.
 Cuando quieras las de verdad, pon `mode: live` en `config.local.yaml`.
 
-### En Windows (a demanda)
+En Windows también vale el doble clic en **`arrancar_servidor.bat`**.
 
-Doble clic en **`arrancar_servidor.bat`**: arranca el servidor, abre el navegador
-y deja la ventana abierta (cerrarla detiene el servidor).
+### Generar el .zip de Windows
+
+```bash
+pip install pyinstaller
+python build.py        # deja la carpeta y el zip en dist/
+```
+
+Se compila en **onedir** (una carpeta, no un fichero único): arranca antes,
+Playwright —que arrastra un Node y su driver— se empaqueta sin sobresaltos, y
+sobre todo los datos del usuario caen junto al `.exe` en vez de en una carpeta
+temporal que Windows borra al salir. El porqué, con detalle, en
+[`newsphotostalker.spec`](newsphotostalker.spec).
 
 ### Como servidor 24/7 (Docker)
 

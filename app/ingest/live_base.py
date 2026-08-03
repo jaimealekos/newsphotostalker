@@ -169,10 +169,15 @@ class LiveAdapter(BaseAdapter):
         return self._page
 
     def _ensure_login(self) -> None:
+        """Deja el adaptador con sesión, o falla explicando qué falta.
+
+        NO se exigen credenciales aquí: lo normal es que la sesión ya viva en el
+        perfil persistente porque el usuario entró a mano una vez, y en ese caso
+        no hace falta tener el usuario y la contraseña en ningún fichero. Cada
+        adaptador decide en su ``login()`` si le hacen falta.
+        """
         if self._logged_in:
             return
-        if not self.credentials.has_login:
-            raise LiveAdapterError(f"{self.agency}: live mode needs credentials")
         self.login()
         self._logged_in = True
 

@@ -15,6 +15,10 @@ config.local.yaml
 .env
 *.local.yaml
 
+# Empaquetado (PyInstaller)
+build/
+dist/
+
 # Herramientas locales
 .claude/
 

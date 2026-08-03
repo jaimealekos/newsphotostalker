@@ -25,7 +25,7 @@ if not exist "config.local.yaml" (
   exit /b 1
 )
 
-echo Arrancando newsphotostalker en http://127.0.0.1:8010 ...
-start "" http://127.0.0.1:8010
-.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8010
+rem run.py elige puerto libre y abre el navegador solo: lo mismo que hace el
+rem ejecutable empaquetado, para que las dos formas se comporten igual.
+.venv\Scripts\python.exe run.py
 pause

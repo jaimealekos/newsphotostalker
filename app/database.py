@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from sqlalchemy import create_engine, event, func, select, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from .config import REPO_ROOT, get_settings
+from .config import BASE_DIR, get_settings
 
 log = logging.getLogger("database")
 
@@ -27,7 +27,7 @@ def _resolved_db_url() -> str:
     if url.startswith(prefix):
         path = url[len(prefix):]
         if not path.startswith("/"):
-            abs_path = (REPO_ROOT / path).resolve()
+            abs_path = (BASE_DIR / path).resolve()
             abs_path.parent.mkdir(parents=True, exist_ok=True)
             return f"{prefix}{abs_path}"
     return url

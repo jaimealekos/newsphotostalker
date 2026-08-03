@@ -17,11 +17,11 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from . import auth, scheduler, services
-from .config import REPO_ROOT, get_settings
+from .config import BUNDLE_DIR, get_settings
 from .database import get_db, init_db
 from .models import Asset, Search, User
 
-templates = Jinja2Templates(directory=str(REPO_ROOT / "app" / "templates"))
+templates = Jinja2Templates(directory=str(BUNDLE_DIR / "app" / "templates"))
 
 
 @asynccontextmanager
@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="newsphotostalker", lifespan=lifespan)
 
 settings = get_settings()
-app.mount("/static", StaticFiles(directory=str(REPO_ROOT / "app" / "static")), name="static")
+app.mount("/static", StaticFiles(directory=str(BUNDLE_DIR / "app" / "static")), name="static")
 app.mount("/media", StaticFiles(directory=str(settings.media_dir)), name="media")
 
 
@@ -396,6 +396,9 @@ def settings_page(
             "has_login": c.has_login if c else False,
             "username": (c.username if c else None),
         }
+    from .ingest.reuters_login import STATUS as reuters_login_status
+
+    perfil = settings.data_dir / "browser" / "reuters"
     return templates.TemplateResponse(
         "settings.html",
         _ctx(
@@ -403,6 +406,11 @@ def settings_page(
             creds=creds,
             gstats=services.global_stats(db, user.id),
             app_settings=services.get_app_settings(db),
+            # Solo dice si hay perfil de navegador guardado, no si la sesión
+            # sigue siendo válida: eso únicamente se sabe ejecutando.
+            reuters_profile=perfil.exists(),
+            reuters_login=reuters_login_status,
+            data_dir=str(settings.data_dir),
             user=user,
         ),
     )
@@ -431,6 +439,17 @@ def update_global_settings(
 @app.post("/refresh-now")
 def refresh_now_all(user: User = Depends(require_user)):
     scheduler.run_all_now()
+    return RedirectResponse("/settings", status_code=303)
+
+
+@app.post("/reuters/login")
+def reuters_login(user: User = Depends(require_user)):
+    """Abre la ventana del login manual de Reuters (en segundo plano).
+
+    Es la única ventana que enseña el programa, y con esto ya no hace falta un
+    script aparte: la versión empaquetada se maneja entera desde el panel.
+    """
+    scheduler.reuters_login_now()
     return RedirectResponse("/settings", status_code=303)
 
 

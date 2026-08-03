@@ -2,8 +2,37 @@
 
 from __future__ import annotations
 
-from app.config import get_settings
+import yaml
+
+from app.config import FIRST_RUN_CONFIG, _read_config, get_settings
 from app.services import _normalise_form
+
+
+# --- codificación de la configuración --------------------------------------
+# El .exe escribe su config en UTF-8 y luego la lee; con read_text() a secas,
+# Python usa la codificación regional (cp1252 en un Windows español) y el primer
+# arranque moría leyendo su propio fichero recién creado.
+def test_config_utf8_se_lee_aunque_la_region_no_lo_sea(tmp_path):
+    ruta = tmp_path / "config.yaml"
+    ruta.write_text(FIRST_RUN_CONFIG, encoding="utf-8")
+    datos = yaml.safe_load(_read_config(ruta))
+    assert datos["mode"] == "live"
+    assert datos["playwright"]["headless"] is True
+
+
+def test_config_guardada_en_ansi_tambien_se_lee(tmp_path):
+    """Si alguien la reescribe con el Bloc de notas, no debe romperse."""
+    ruta = tmp_path / "config.yaml"
+    ruta.write_bytes("mode: live  # configuración en español\n".encode("cp1252"))
+    assert yaml.safe_load(_read_config(ruta))["mode"] == "live"
+
+
+def test_la_config_del_primer_arranque_es_yaml_valido_y_en_vivo():
+    datos = yaml.safe_load(FIRST_RUN_CONFIG)
+    assert datos["mode"] == "live"
+    assert datos["data_dir"] == "./data"
+    # Sin credenciales de Reuters: se entra a mano desde ajustes.
+    assert datos["agencies"]["reuters"]["username"] is None
 
 
 def test_afp_routes_to_getty_credentials():

@@ -70,6 +70,16 @@ class ReutersAdapter(LiveAdapter):
         if self._looks_logged_in():
             return
 
+        # Sin sesión guardada y sin credenciales no hay nada que intentar. Es el
+        # caso normal de una instalación recién descargada: se entra a mano una
+        # vez y la sesión queda en el perfil.
+        if not self.credentials.has_login:
+            raise LiveAdapterError(
+                "no hay sesión de Reuters guardada. Entra una vez desde "
+                "«ajustes → iniciar sesión en Reuters»: se abre una ventana del "
+                "navegador y la sesión queda guardada para las siguientes veces."
+            )
+
         page.goto("https://www.reutersconnect.com/login", wait_until="domcontentloaded")
         page.wait_for_timeout(4000)
         self._dismiss_cookies()

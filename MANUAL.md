@@ -21,6 +21,33 @@ Guía de uso completa. Para una visión rápida, mira el [README](README.md).
 
 ## Instalación
 
+### La versión descargable de Windows
+
+Descomprime el `.zip` de la [release](../../releases) y haz doble clic en
+`newsphotostalker.exe`. No hay instalador ni hace falta Python: la ventana negra
+que se abre **es** el programa, y cerrarla lo detiene.
+
+Junto al `.exe` aparecen, la primera vez:
+
+| | |
+|---|---|
+| `config.local.yaml` | ajustes editables (modo, refresco, avisos) |
+| `data/app.db` | la base de datos: búsquedas, fotos indexadas, tu cuenta |
+| `data/media/` | las fotos descargadas, por agencia y búsqueda |
+| `data/browser/` | la sesión de Reuters |
+
+Todo lo tuyo vive ahí: para hacer copia de seguridad o mudarte de ordenador,
+copia esa carpeta. No lo descomprimas dentro de `C:\Archivos de programa`, que
+Windows no deja escribir ahí.
+
+Windows avisará de que no reconoce la aplicación, porque el ejecutable no va
+firmado: *Más información → Ejecutar de todas formas*.
+
+Para Reuters hace falta **Google Chrome** instalado y entrar una vez desde
+*ajustes → iniciar sesión en Reuters* (ver [Reuters: el login](#reuters-el-login)).
+
+### Desde el código
+
 Requisitos: **Python 3.10+** y, para el modo real de Reuters, **Google Chrome**.
 
 ```bash
@@ -136,11 +163,20 @@ La purga borra los ficheros en disco y sus registros.
 ## Reuters: el login
 
 Reuters Connect exige sesión y está tras **DataDome**, así que se usa un navegador
-real con tu login, que haces **a mano una vez**:
+real con tu login, que haces **a mano una vez**. Desde el panel:
+
+> *ajustes → sesión de Reuters → **iniciar sesión en Reuters***
+
+O desde la línea de órdenes, si trabajas con el código:
 
 ```bash
 python -m scripts.login_reuters      # Windows: login_reuters.bat
 ```
+
+**No hace falta poner tu contraseña de Reuters en ningún fichero.** La sesión
+queda en el perfil del navegador y las ejecuciones la reutilizan. Los campos
+`username`/`password` de la configuración son opcionales: solo sirven si prefieres
+que el programa intente el login automático, que DataDome suele frenar.
 
 Se abre Chrome en la página de login; entra (email, contraseña y el deslizador si
 aparece). La sesión queda en el perfil (`data/browser/`) y se reutiliza. Si caduca,
