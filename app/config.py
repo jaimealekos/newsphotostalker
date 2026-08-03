@@ -52,7 +52,7 @@ def _prepara_chromium_empaquetado() -> None:
         return
     destino = BASE_DIR / "data" / "browsers"
     tarball = BUNDLE_DIR / "chromium.tar.gz"
-    if destino.is_dir() and any(destino.glob("chromium-*")):
+    if destino.is_dir() and any(destino.glob("chromium*")):
         os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(destino))
         return
     if not tarball.is_file():

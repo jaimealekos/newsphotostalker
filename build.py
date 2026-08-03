@@ -57,7 +57,11 @@ def preparar_chromium() -> None:
         "darwin": Path.home() / "Library" / "Caches" / "ms-playwright",
         "linux": Path.home() / ".cache" / "ms-playwright",
     }[sys.platform if sys.platform == "darwin" else "linux"]
-    navegadores = sorted(cache.glob("chromium-*")) if cache.is_dir() else []
+    # Ojo con el patrón: Playwright instala DOS paquetes, `chromium-<n>` para el
+    # modo con ventana y `chromium_headless_shell-<n>` para el headless, que es
+    # justo el que usan las búsquedas. Con solo el primero, el programa arranca
+    # pero no busca nada.
+    navegadores = sorted(cache.glob("chromium*")) if cache.is_dir() else []
     if not navegadores:
         print("aviso: no hay Chromium de Playwright que empaquetar "
               "(ejecuta 'python -m playwright install chromium')")
