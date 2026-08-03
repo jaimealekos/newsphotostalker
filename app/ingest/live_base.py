@@ -17,12 +17,44 @@ Key facts verified against the live service (2026-07):
 
 from __future__ import annotations
 
+import queue
 import re
 import sys
+import threading
 import time
 from pathlib import Path
 
 from .base import BaseAdapter, DownloadedFiles, RawAsset
+
+
+def en_hilo_sin_bucle(funcion, *args, **kwargs):
+    """Ejecuta algo en un hilo recién creado y devuelve su resultado.
+
+    Playwright tiene dos API, una de bloqueo y otra asíncrona, y la de bloqueo
+    se niega a funcionar —«Sync API inside the asyncio loop»— si en el hilo
+    actual hay un bucle de asyncio corriendo. Quién llama y desde dónde es fácil
+    de cambiar sin darse cuenta (una ruta que pasa a ``async``, un ejecutor
+    distinto en el planificador), y el fallo solo aparece en tiempo de ejecución.
+
+    Un hilo nuevo nunca tiene bucle, así que envolviendo aquí el trabajo la
+    situación deja de poder darse, venga la llamada de donde venga. Las
+    excepciones se reenvían al hilo que llamó, para no tragarse ningún error.
+    """
+    buzon: queue.Queue = queue.Queue(maxsize=1)
+
+    def _corre():
+        try:
+            buzon.put(("ok", funcion(*args, **kwargs)))
+        except BaseException as exc:  # noqa: BLE001 - se relanza tal cual abajo
+            buzon.put(("error", exc))
+
+    hilo = threading.Thread(target=_corre, name="playwright", daemon=True)
+    hilo.start()
+    hilo.join()
+    estado, valor = buzon.get()
+    if estado == "error":
+        raise valor
+    return valor
 
 _BG_URL_RE = re.compile(r'url\(["\']?([^"\')]+)')
 

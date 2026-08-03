@@ -134,12 +134,15 @@ def con_navegador_libre(funcion, *args):
     el lock del runner. Si hay una ejecución larga, se falla en claro en vez de
     reventar con un error de perfil bloqueado.
     """
+    from .live_base import en_hilo_sin_bucle
     from .runner import _RUN_LOCK
 
     if not _RUN_LOCK.acquire(timeout=LOCK_WAIT_SECONDS):
         raise SessionError("hay una búsqueda en marcha; inténtalo en un minuto")
     try:
-        return funcion(*args)
+        # En hilo propio, por lo mismo que el login: Playwright de bloqueo se
+        # niega a arrancar si en este hilo hay un bucle de asyncio corriendo.
+        return en_hilo_sin_bucle(funcion, *args)
     finally:
         _RUN_LOCK.release()
 

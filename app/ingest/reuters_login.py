@@ -62,13 +62,16 @@ def open_login_window(wait_minutes: int = DEFAULT_WAIT_MINUTES) -> str:
     admite dos instancias sobre el mismo perfil, así que si hay una ejecución en
     marcha se espera a que acabe en vez de reventar con un error de perfil.
     """
+    from .live_base import en_hilo_sin_bucle
     from .runner import _RUN_LOCK
 
     STATUS.set("waiting_lock", "esperando a que termine lo que esté en curso…")
     if not _RUN_LOCK.acquire(timeout=LOCK_WAIT_SECONDS):
         return _fail("hay una búsqueda en marcha y no ha terminado a tiempo; inténtalo en un minuto")
     try:
-        return _login(wait_minutes)
+        # En hilo propio: Playwright de bloqueo no admite un bucle de asyncio en
+        # el hilo actual, y quién nos llama no debería poder romper esto.
+        return en_hilo_sin_bucle(_login, wait_minutes)
     except Exception as exc:  # noqa: BLE001 - el botón nunca debe tumbar el servidor
         return _fail(f"{type(exc).__name__}: {exc}")
     finally:
