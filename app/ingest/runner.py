@@ -59,9 +59,20 @@ def run_search(search_id: int, limit: int = 100, *, since=_USE_CURSOR, page_cap=
     Por defecto usa el cursor de novedades (solo trae lo más nuevo). El backfill
     pasa ``since`` explícito (fecha límite de retención o None) y un ``page_cap``
     alto para bajar hacia atrás y rellenar toda la ventana.
+
+    Se ejecuta en un hilo recién creado (``en_hilo_sin_bucle``) por lo mismo que
+    el login: la API de bloqueo de Playwright se niega a arrancar —«Sync API
+    inside the asyncio loop»— si en el hilo actual hay un bucle de asyncio. Aquí
+    la llamada viene del planificador, cuyos hilos se REUTILIZAN, así que basta
+    con que una ejecución anterior dejara un bucle puesto en ese hilo para que la
+    siguiente búsqueda de Reuters falle. El síntoma es desconcertante: unas
+    búsquedas van y otras no, sin patrón, y cambia de una vez a otra.
     """
+    from .live_base import en_hilo_sin_bucle
+
     with _RUN_LOCK:
-        return _run_search_locked(search_id, limit, since, page_cap)
+        # Sin timeout: un backfill largo puede tardar minutos y no es un cuelgue.
+        return en_hilo_sin_bucle(_run_search_locked, search_id, limit, since, page_cap)
 
 
 def backfill_search(search_id: int) -> RunResult:

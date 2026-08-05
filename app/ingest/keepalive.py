@@ -37,45 +37,58 @@ def keepalive_reuters() -> None:
     if not cred.enabled or not cred.has_login:
         return
 
+    from .live_base import en_hilo_sin_bucle
+
+    with _RUN_LOCK:
+        # En un hilo recién creado, por lo mismo que el login y las búsquedas: la
+        # API de bloqueo de Playwright no arranca si en el hilo actual hay un
+        # bucle de asyncio, y este trabajo lo dispara el planificador, que
+        # reutiliza sus hilos. Sin esto el keep-alive muere con «Sync API inside
+        # the asyncio loop» — y muere callado, que es lo peor que puede pasarle:
+        # es justo lo que evita que caduque la sesión de Reuters.
+        en_hilo_sin_bucle(_keepalive_locked, settings, cred)
+
+
+def _keepalive_locked(settings, cred) -> None:
+    """El trabajo del keep-alive. Se llama con el lock tomado y en hilo limpio."""
     from .live_base import LiveAdapterError
     from .reuters import ReutersAdapter
 
-    with _RUN_LOCK:
-        adapter = ReutersAdapter(settings, cred)
-        adapter.requires_login = False  # open() no debe forzar el login
-        try:
-            adapter.open()
-            page = adapter.page
-            page.goto(WARM_URL, wait_until="domcontentloaded")
-            page.wait_for_timeout(3000)
+    adapter = ReutersAdapter(settings, cred)
+    adapter.requires_login = False  # open() no debe forzar el login
+    try:
+        adapter.open()
+        page = adapter.page
+        page.goto(WARM_URL, wait_until="domcontentloaded")
+        page.wait_for_timeout(3000)
 
-            if adapter._looks_logged_in():
-                try:
-                    adapter.autoscroll(rounds=1)  # navegación ligera: refresca cookies
-                except Exception:  # noqa: BLE001
-                    pass
-                alerts.record_run(settings, "reuters", ok=True)
-                log.info("keepalive: sesión Reuters viva")
-                return
-
-            # Sesión de auth caída. Reintentamos re-login automático SOLO si no
-            # estábamos ya en fallo (para no martillear el slider de DataDome).
-            if alerts.status(settings, "reuters") == "failing":
-                log.warning("keepalive: sesión caída y ya avisado; sin reintento")
-                return
-
-            log.warning("keepalive: sesión caída, intento re-login automático")
-            adapter.login()
-            if adapter._looks_logged_in():
-                alerts.record_run(settings, "reuters", ok=True)
-                log.info("keepalive: re-login automático OK (sin humano)")
-            else:
-                raise LiveAdapterError("re-login automático no completó (¿slider DataDome?)")
-        except Exception as exc:  # noqa: BLE001
-            log.error("keepalive Reuters falló: %s", exc)
-            alerts.record_run(settings, "reuters", ok=False, error=f"keepalive: {exc}")
-        finally:
+        if adapter._looks_logged_in():
             try:
-                adapter.close()
+                adapter.autoscroll(rounds=1)  # navegación ligera: refresca cookies
             except Exception:  # noqa: BLE001
                 pass
+            alerts.record_run(settings, "reuters", ok=True)
+            log.info("keepalive: sesión Reuters viva")
+            return
+
+        # Sesión de auth caída. Reintentamos re-login automático SOLO si no
+        # estábamos ya en fallo (para no martillear el slider de DataDome).
+        if alerts.status(settings, "reuters") == "failing":
+            log.warning("keepalive: sesión caída y ya avisado; sin reintento")
+            return
+
+        log.warning("keepalive: sesión caída, intento re-login automático")
+        adapter.login()
+        if adapter._looks_logged_in():
+            alerts.record_run(settings, "reuters", ok=True)
+            log.info("keepalive: re-login automático OK (sin humano)")
+        else:
+            raise LiveAdapterError("re-login automático no completó (¿slider DataDome?)")
+    except Exception as exc:  # noqa: BLE001
+        log.error("keepalive Reuters falló: %s", exc)
+        alerts.record_run(settings, "reuters", ok=False, error=f"keepalive: {exc}")
+    finally:
+        try:
+            adapter.close()
+        except Exception:  # noqa: BLE001
+            pass
