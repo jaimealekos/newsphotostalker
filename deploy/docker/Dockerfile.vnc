@@ -1,16 +1,93 @@
-# Imagen OPCIONAL para hacer el login manual de Reuters en un servidor SIN pantalla:
-# expone el display virtual por noVNC, así abres un navegador y resuelves el login
-# (y el deslizador de DataDome) a mano desde tu equipo.
+# Imagen OPCIONAL para hacer el login manual de Reuters en un servidor SIN
+# pantalla: levanta un escritorio virtual y lo publica por noVNC, así abres un
+# navegador y resuelves el login (y el deslizador de DataDome) a mano desde tu
+# equipo.
 #
-# Construir sobre la imagen base (arriba):
+# Construir sobre la imagen base (ver Dockerfile), y ejecutar:
 #   docker build -t newsphotostalker     -f deploy/docker/Dockerfile .
 #   docker build -t newsphotostalker-vnc -f deploy/docker/Dockerfile.vnc deploy/docker
-# Ejecutar (mismo volumen de datos que la app, para compartir el perfil de Reuters):
-#   docker run --rm --init -p 6080:6080 -v "$PWD/data":/srv/app/data newsphotostalker-vnc
-# Luego abre  http://SERVIDOR:6080/vnc.html  y haz el login.
+#   docker run --rm -it --init --shm-size=1g -p 6080:6080 \
+#     -v "$PWD/data":/srv/app/data \
+#     -v "$PWD/config.local.yaml":/srv/app/config.local.yaml:ro \
+#     newsphotostalker-vnc
+# Luego abre http://SERVIDOR:6080/vnc.html, entra en Reuters hasta ver tu panel,
+# vuelve a la terminal y pulsa Intro. Detalle en deploy/README.md.
+#
+# OJO con las dos opciones del `docker run`, que no son adorno:
+#   -it            el login es en dos pasos y el segundo lo dispara un Intro en
+#                  la terminal. Sin -it la entrada está cerrada, se lee
+#                  fin-de-fichero, se da el Intro por hecho al instante y todo
+#                  acaba en «no se detectó la sesión» sin tiempo a nada.
+#   --shm-size=1g  Docker da 64 MB a /dev/shm y el renderizador de Chrome se
+#                  ahoga: la ventana abre, la pestaña dice «Login | Reuters
+#                  Connect»… y la página es un «Aw, Snap!» (SIGTRAP). Las
+#                  BÚSQUEDAS no lo sufren porque Playwright pasa
+#                  --disable-dev-shm-usage por su cuenta; el login abre el
+#                  navegador del sistema a pelo y no.
 FROM newsphotostalker:latest
+
+# openbox: gestor de ventanas (ver with-novnc.sh, punto 3).
+# x11-utils / x11-apps: xdpyinfo, xwininfo, xwd. Sirven para saber si hay una
+#   ventana de verdad en el display virtual, que es la única forma de
+#   distinguir «esto no arranca» de «esto va, pero no se ve» sin adivinar.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends x11vnc novnc websockify \
+ && apt-get install -y --no-install-recommends \
+      x11vnc novnc websockify openbox x11-utils x11-apps \
  && rm -rf /var/lib/apt/lists/*
+
+# El login abre Chrome con las MISMAS opciones que las búsquedas.
+#
+# Las búsquedas las lanza Playwright, y ahí `live_base.open()` ya pasa en Linux
+# `--no-sandbox --ignore-gpu-blocklist --use-gl=angle --use-angle=gl-egl`. El
+# login no: abre el navegador del sistema con un subprocess pelado —a propósito,
+# para que DataDome no vea automatización— y se queda sin ninguna de las dos
+# cosas. Dentro de un contenedor, cada una falla a su manera:
+#
+#   sin --no-sandbox   Chrome ni arranca:
+#                      «Failed to move to new namespace: Operation not
+#                      permitted» + FATAL zygote_host_impl_linux.cc, vuelca el
+#                      core y muere. noVNC se ve NEGRO, sin ninguna ventana.
+#   sin las de GL      Chrome arranca y abre la ventana, pero no consigue
+#                      contexto gráfico («glx: failed to create drisw screen»,
+#                      «Failed to send GpuControl.CreateCommandBuffer») y con un
+#                      sitio pesado como Reuters no llega a pintar nada: la
+#                      ventana existe y se ve NEGRA, indefinidamente.
+#   sin Vulkan off     desde Chrome 151 hay que añadir además
+#                      --disable-features=Vulkan. Chrome 151 intenta Vulkan por
+#                      ZINK, falla («ZINK: vkCreateInstance failed
+#                      VK_ERROR_INCOMPATIBLE_DRIVER») y se queda sin pintar: otra
+#                      vez ventana NEGRA. Medido A/B en el mismo servidor con el
+#                      mismo flujo: Chrome 150.0.7871.181 pinta, 151.0.7922.75
+#                      no; con esta opción, 151 vuelve a pintar. Solo afecta al
+#                      login: las búsquedas van por Playwright, que arranca
+#                      Chrome con sus propias opciones y no lo sufren
+#                      (verificado con 151).
+#                      Se descartaron --disable-gpu y --use-angle=swiftshader,
+#                      que también lo arreglan, porque estropean la huella: uno
+#                      deja el navegador sin WebGL y el otro lo delata como
+#                      SwiftShader, señal clásica de bot.
+#
+# Y hay una razón de fondo, más allá de que arranque: la sesión que crea el
+# login la reutilizan luego las búsquedas. Si el navegador del login presenta
+# otro WebGL que el de las búsquedas, DataDome ve dos dispositivos distintos
+# usando la misma sesión, que es justo lo que no queremos.
+#
+# Se resuelve aquí, en la imagen, y no en el código: /usr/bin/google-chrome
+# (lo que encuentra system_browser) pasa a ser un envoltorio que añade las
+# opciones. Playwright, que apunta a esa misma ruta, las pasará dos veces; es
+# inofensivo. Fuera del contenedor la app queda intacta, con su sandbox.
+RUN rm -f /usr/bin/google-chrome \
+ && printf '%s\n' \
+      '#!/bin/sh' \
+      '# Envoltorio del contenedor: mismas opciones que usan las búsquedas.' \
+      '# Motivo y contexto, en deploy/docker/Dockerfile.vnc.' \
+      'exec /opt/google/chrome/google-chrome \' \
+      '  --no-sandbox --ignore-gpu-blocklist \' \
+      '  --use-gl=angle --use-angle=gl-egl --disable-features=Vulkan "$@"' \
+      > /usr/bin/google-chrome \
+ && chmod 755 /usr/bin/google-chrome
+
+COPY with-novnc.sh /usr/local/bin/with-novnc.sh
+
 EXPOSE 6080
-CMD ["sh","-c","rm -f /tmp/.X99-lock; rm -rf /tmp/.X11-unix/X99; Xvfb :99 -screen 0 1440x900x24 -nolisten tcp & x11vnc -display :99 -localhost -nopw -forever -shared -quiet & websockify --web /usr/share/novnc 6080 localhost:5900 & export DISPLAY=:99; sleep 2; exec python -m scripts.login_reuters"]
+CMD ["sh", "/usr/local/bin/with-novnc.sh"]

@@ -1,0 +1,7 @@
+# Los scripts de shell y los Dockerfile acaban DENTRO de un contenedor Linux.
+# Si Git los convierte a CRLF al clonar en Windows, el contenedor falla con
+# errores desconcertantes —«$'\r': command not found», el script "no existe"
+# aunque esté ahí— porque el shell se traga el retorno de carro como parte del
+# comando. Se fuerza LF pase lo que pase, aunque el repo se clone en Windows.
+*.sh text eol=lf
+Dockerfile* text eol=lf
