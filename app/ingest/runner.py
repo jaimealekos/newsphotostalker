@@ -15,7 +15,9 @@ over the SQLite database.
 
 from __future__ import annotations
 
+import logging
 import threading
+import time
 import traceback
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -30,7 +32,29 @@ from ..models import RETENTION_TIME, Asset, RunLog, Search, utcnow
 from ..retention import purge_search
 from .factory import get_adapter
 
+log = logging.getLogger("runner")
+
 _RUN_LOCK = threading.Lock()
+
+#: Intentos por ejecución: el segundo es el reintento ante un fallo pasajero.
+#:
+#: Por qué: una sola página que tarda de más —Reuters lento, un interstitial
+#: momentáneo del muro anti-bot— daba una ejecución fallida y, con los avisos
+#: activados, un correo. Visto en producción: 52 ejecuciones de Reuters en 24 h,
+#: **una** fallida por un `wait_for_selector` agotado, y la siguiente ronda ya
+#: iba bien. El reintento distingue eso de que la agencia esté rota de verdad,
+#: y no cede nada a cambio: si el segundo intento también falla, la ejecución se
+#: marca como fallida y el aviso sale igual.
+INTENTOS = 2
+
+#: Espera entre intentos. No es solo cortesía: si el fallo vino de un muro
+#: anti-bot, volver a golpear en el mismo segundo es la peor idea posible.
+ESPERA_REINTENTO_S = 15
+
+#: Fallos que NO se reintentan, porque reintentarlos no puede arreglarlos y sí
+#: hacer daño: sin credenciales seguirá sin haberlas, y ante un bot-wall que
+#: exige un humano, insistir solo empeora la reputación del navegador.
+NO_REINTENTABLES = ("no se completó", "needs credentials", "necesita credenciales")
 
 # Centinela: "usa el cursor de novedades de la búsqueda" (por defecto). El
 # backfill pasa un `since` explícito (la fecha límite de retención, o None).
@@ -95,6 +119,38 @@ def _retention_floor(search: Search) -> datetime | None:
     return None
 
 
+def con_reintento(trabajo, etiqueta: str = ""):
+    """Ejecuta ``trabajo()``; ante un fallo pasajero lo intenta una vez más.
+
+    Si el segundo intento también falla, la excepción sube tal cual: el aviso y
+    la ejecución fallida salen igual que antes. Lo único que se filtra es el
+    ruido de un tropiezo aislado.
+    """
+    for intento in range(1, INTENTOS + 1):
+        try:
+            return trabajo()
+        except Exception as exc:  # noqa: BLE001 - se relanza abajo si toca
+            if intento >= INTENTOS or not _merece_reintento(exc):
+                raise
+            log.warning(
+                "%s falló (%s); reintento en %s s", etiqueta or "la ingesta", exc,
+                ESPERA_REINTENTO_S,
+            )
+            time.sleep(ESPERA_REINTENTO_S)
+
+
+def _merece_reintento(exc: Exception) -> bool:
+    """¿Este fallo puede arreglarse volviendo a intentarlo dentro de un rato?
+
+    Casi todos sí: son tiempos de espera agotados y páginas que no llegaron a
+    pintar. Los que no, están en :data:`NO_REINTENTABLES` y se reconocen por el
+    texto porque es lo único que distingue a unos de otros: todos llegan aquí
+    como ``LiveAdapterError``.
+    """
+    texto = str(exc).lower()
+    return not any(marca.lower() in texto for marca in NO_REINTENTABLES)
+
+
 def _run_search_locked(search_id: int, limit: int, since, page_cap) -> RunResult:
     settings = get_settings()
 
@@ -119,7 +175,9 @@ def _run_search_locked(search_id: int, limit: int, since, page_cap) -> RunResult
     result = RunResult(search_id=search_id, status="ok")
     new_cursor = cursor
 
-    try:
+    def _una_pasada() -> None:
+        """Un intento completo: abre el adaptador, busca y guarda lo nuevo."""
+        nonlocal new_cursor
         adapter = get_adapter(agency, settings)
         with adapter:
             # Backfill: sube el tope de páginas del adaptador (AP/Getty) para
@@ -144,6 +202,9 @@ def _run_search_locked(search_id: int, limit: int, since, page_cap) -> RunResult
                         new_cursor = cap
                 except Exception as exc:  # noqa: BLE001
                     result.errors.append(f"{raw.external_id}: {exc}")
+
+    try:
+        con_reintento(_una_pasada, f"{agency}/{query}")
     except Exception as exc:  # noqa: BLE001
         result.status = "error"
         result.message = f"{type(exc).__name__}: {exc}"
