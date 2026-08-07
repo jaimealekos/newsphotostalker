@@ -7,6 +7,7 @@ solo lo dinámico llega aquí.
 
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -22,6 +23,20 @@ from . import auth, scheduler, services
 from .config import BUNDLE_DIR, get_settings
 from .database import get_db, init_db
 from .models import Asset, Search, User
+
+# El registro, aquí y no solo en run.py: un despliegue con Docker arranca
+# `uvicorn app.main:app` directamente, sin pasar por run.py, y uvicorn configura
+# únicamente sus propios loggers. Sin esto, los mensajes informativos de la
+# aplicación se pierden: se ven los avisos y los errores, pero no las
+# confirmaciones de que algo FUNCIONA —«keepalive: sesión Reuters viva»—, y
+# entonces el silencio de un trabajo que no se ejecuta es indistinguible del
+# silencio de uno que va perfectamente. `basicConfig` no hace nada si alguien
+# (run.py) ya dejó el registro montado, así que no duplica líneas.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s  %(levelname)-7s %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
 
 templates = Jinja2Templates(directory=str(BUNDLE_DIR / "app" / "templates"))
 

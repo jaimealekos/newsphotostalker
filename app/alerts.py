@@ -37,27 +37,44 @@ def record_run(settings: Settings, agency: str, ok: bool, error: str | None = No
     cfg = settings.alerts
     if not cfg.enabled or not cfg.webhook_url or agency not in cfg.agencies:
         return
+    _flanco(settings, agency, ok, error, lambda: _send(cfg, agency, error or "(sin detalle)"))
 
+
+def vigila(settings: Settings, clave: str, ok: bool, asunto: str, mensaje: str) -> None:
+    """Igual que :func:`record_run`, pero para algo que no es una agencia.
+
+    Lo usa el vigilante del keep-alive. Comparte fichero de estado y máquina de
+    estados —un aviso por tramo, rearmado al recuperarse— para que no haya dos
+    formas distintas de avisar que puedan divergir.
+    """
+    cfg = settings.alerts
+    if not cfg.enabled or not cfg.webhook_url:
+        return
+    _flanco(settings, clave, ok, None if ok else mensaje, lambda: _post(cfg, asunto, mensaje))
+
+
+def _flanco(settings: Settings, clave: str, ok: bool, detalle: str | None, enviar) -> None:
+    """La máquina de estados del aviso por flanco, común a todo lo vigilado."""
     path = _state_path(settings)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with _LOCK:
         state = _load(path)
-        entry = state.get(agency) or {}
+        entry = state.get(clave) or {}
         if ok:
             if entry.get("status") == "failing":
-                log.info("%s vuelve a funcionar; disparador rearmado", agency)
-            state[agency] = {"status": "ok", "since": now}
+                log.info("%s vuelve a funcionar; disparador rearmado", clave)
+            state[clave] = {"status": "ok", "since": now}
             _save(path, state)
             return
 
         if entry.get("status") == "failing":
             return  # ya se avisó de este tramo de fallos
 
-        if _send(cfg, agency, error or "(sin detalle)"):
-            state[agency] = {"status": "failing", "since": now, "first_error": error}
+        if enviar():
+            state[clave] = {"status": "failing", "since": now, "first_error": detalle}
             _save(path, state)
         else:
-            log.error("no se pudo entregar el aviso de %s; se reintentará", agency)
+            log.error("no se pudo entregar el aviso de %s; se reintentará", clave)
 
 
 def status(settings: Settings, agency: str) -> str | None:
@@ -72,9 +89,15 @@ def _send(cfg, agency: str, error: str) -> bool:
         f"La ingesta de {agency} ha fallado y no se reintentará avisar hasta "
         f"que vuelva a funcionar y falle de nuevo.\n\n"
         f"Error: {error}\n\n"
-        "Revisa la actividad en el panel. Si es la sesión de Reuters (lo más "
-        "probable), vuelve a iniciar sesión (ver el README)."
+        "Revisa la actividad en el panel. Ya se reintentó una vez antes de dar "
+        "la ejecución por fallida, así que no es un tropiezo aislado. Si es la "
+        "sesión de Reuters, vuelve a iniciar sesión (ver el README)."
     )
+    return _post(cfg, subject, message)
+
+
+def _post(cfg, subject: str, message: str) -> bool:
+    """Entrega un aviso por el webhook. True si el destinatario lo aceptó."""
     body = json.dumps({"subject": subject, "message": message}).encode()
     req = urllib.request.Request(
         cfg.webhook_url,

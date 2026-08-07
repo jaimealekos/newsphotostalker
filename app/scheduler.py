@@ -61,6 +61,16 @@ def _run_all_job() -> None:
         log.info("refresh-all: %s búsquedas (%s ok)", len(results), oks)
     except Exception:  # noqa: BLE001
         log.exception("refresh-all crashed")
+    # Aprovechando que este trabajo SÍ se está ejecutando, se comprueba que el
+    # otro —el keep-alive— también. Va fuera del try de arriba a propósito: que
+    # el refresco falle es justo cuando más interesa saber si el keep-alive
+    # sigue vivo. Y nunca debe tumbar el trabajo: es vigilancia, no ingesta.
+    try:
+        from .ingest.keepalive import revisa_atraso
+
+        revisa_atraso()
+    except Exception:  # noqa: BLE001
+        log.exception("la vigilancia del keep-alive falló")
 
 
 def reschedule() -> None:
@@ -188,7 +198,7 @@ def _schedule_keepalive() -> None:
             existing.remove()
         return
 
-    from .ingest.keepalive import keepalive_reuters
+    from .ingest.keepalive import keepalive_reuters, marca_senal
 
     sched.add_job(
         keepalive_reuters,
@@ -198,3 +208,8 @@ def _schedule_keepalive() -> None:
         id=KEEPALIVE_JOB_ID,
         replace_existing=True,
     )
+    # El arranque cuenta como señal: a partir de aquí el keep-alive tiene su
+    # intervalo para dar la suya, y el vigilante mide desde este momento. Sin
+    # esto, un reinicio con el fichero de señal viejo dispararía un aviso falso.
+    marca_senal(get_settings(), motivo="arranque")
+    log.info("keep-alive de Reuters programado cada %s min (vigilado)", mins)
