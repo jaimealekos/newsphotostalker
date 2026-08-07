@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from . import auth, scheduler, services
+from . import auth, enlaces, scheduler, services
 from .config import BUNDLE_DIR, get_settings
 from .database import get_db, init_db
 from .models import Asset, Search, User
@@ -39,6 +39,10 @@ logging.basicConfig(
 )
 
 templates = Jinja2Templates(directory=str(BUNDLE_DIR / "app" / "templates"))
+# Disponible en todas las plantillas: la búsqueda de un fotógrafo en la web de
+# su agencia (ver app/enlaces.py). Como global y no como variable de contexto
+# para no tener que acordarse de pasarla en cada ruta que pinte fotos.
+templates.env.globals["url_del_fotografo"] = enlaces.url_del_fotografo
 
 
 @asynccontextmanager

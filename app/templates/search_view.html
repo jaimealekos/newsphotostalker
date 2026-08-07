@@ -19,22 +19,34 @@
 {% if assets %}
 <div class="photo-grid">
   {% for a in assets %}
-  <a class="card" href="/asset/{{ a.id }}">
-    <div class="card-img">
-      {% if a.thumbnail_path %}
-      <img loading="lazy" src="/media/{{ a.thumbnail_path }}" alt="{{ a.title or a.caption or '' }}">
-      {% else %}
-      <div class="noimg">sin imagen</div>
-      {% endif %}
-    </div>
-    <div class="card-body">
-      <div class="card-cap">{{ (a.caption or a.title or '')[:110] }}</div>
-      <div class="card-meta">
-        <span>{{ a.photographer or '—' }}</span>
-        <span>{{ a.captured_at|ymd }}</span>
+  {# La ficha va dentro del enlace a la foto; la fila de abajo, FUERA: el nombre
+     del fotógrafo es a su vez un enlace (a la agencia) y un enlace dentro de
+     otro no es HTML válido —el navegador parte la etiqueta y el resultado es
+     impredecible. #}
+  <div class="card">
+    <a class="card-link" href="/asset/{{ a.id }}">
+      <div class="card-img">
+        {% if a.thumbnail_path %}
+        <img loading="lazy" src="/media/{{ a.thumbnail_path }}" alt="{{ a.title or a.caption or '' }}">
+        {% else %}
+        <div class="noimg">sin imagen</div>
+        {% endif %}
       </div>
+      <div class="card-body">
+        <div class="card-cap">{{ (a.caption or a.title or '')[:110] }}</div>
+      </div>
+    </a>
+    <div class="card-meta">
+      {% set busqueda = url_del_fotografo(a.agency, a.photographer) %}
+      {% if busqueda %}
+      <a class="autor" href="{{ busqueda }}" target="_blank" rel="noopener noreferrer"
+         title="Ver el trabajo de {{ a.photographer }} en {{ a.agency|upper }}">{{ a.photographer }}</a>
+      {% else %}
+      <span>{{ a.photographer or '—' }}</span>
+      {% endif %}
+      <span>{{ a.captured_at|ymd }}</span>
     </div>
-  </a>
+  </div>
   {% endfor %}
 </div>
 

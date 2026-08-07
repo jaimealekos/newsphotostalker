@@ -31,7 +31,17 @@
     <p class="caption">{{ asset.caption or "" }}</p>
 
     <dl>
-      <dt>Fotógrafo</dt><dd>{{ asset.photographer or "—" }}</dd>
+      {% set busqueda = url_del_fotografo(asset.agency, asset.photographer) %}
+      <dt>Fotógrafo</dt>
+      <dd>
+        {% if busqueda %}
+        <a class="autor" href="{{ busqueda }}" target="_blank" rel="noopener noreferrer"
+           title="Ver el trabajo de {{ asset.photographer }} en {{ asset.agency|upper }}"
+           >{{ asset.photographer }} ↗</a>
+        {% else %}
+        {{ asset.photographer or "—" }}
+        {% endif %}
+      </dd>
       <dt>Crédito</dt><dd>{{ asset.credit or "—" }}</dd>
       <dt>Fecha de captura</dt><dd>{{ asset.captured_at|ymd }}</dd>
       <dt>ID de la agencia</dt><dd class="mono">{{ asset.external_id }}</dd>
