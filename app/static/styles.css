@@ -334,6 +334,21 @@ input:focus, select:focus { outline: none; border-color: var(--ink); }
    descubrir. */
 .autor { color: inherit; text-decoration: none; }
 .autor:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+
+/* Fotos llegadas desde tu última visita y que aún no has abierto. Se marcan con
+   el rojo de agencia, el mismo de la luz de novedades del panel, para que sea
+   el mismo idioma en los dos sitios. La etiqueta va sobre la imagen y no
+   alrededor de la tarjeta: en una hoja de contactos, un borde por foto llena la
+   pantalla de cajas y deja de destacar nada. */
+.card-nueva .card-img { box-shadow: 0 0 0 2px var(--flag); }
+.marca-nueva {
+  position: absolute; top: 0; left: 0;
+  background: var(--flag); color: var(--paper);
+  font: var(--cable); text-transform: uppercase; letter-spacing: var(--track);
+  padding: 3px 6px 2px; line-height: 1;
+}
+/* Al abrirla deja de estar marcada, así que la marca no necesita estado de
+   hover: se apaga sola en cuanto la ves. */
 .noimg { background: var(--paper-3); color: var(--muted); aspect-ratio: 3/2;
   display: flex; align-items: center; justify-content: center; font-size: 11px; }
 .noimg.big { aspect-ratio: 3/2; font-size: 14px; }

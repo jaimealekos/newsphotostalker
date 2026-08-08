@@ -144,6 +144,9 @@ class Asset(Base):
 
     file_bytes: Mapped[int] = mapped_column(Integer, default=0)
     downloaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    #: Cuándo se abrió esta foto a tamaño completo. Mientras sea NULL y la foto
+    #: haya llegado después de tu última visita, sale destacada en la rejilla.
+    seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     search: Mapped["Search"] = relationship(back_populates="assets")
 

@@ -23,7 +23,8 @@
      del fotógrafo es a su vez un enlace (a la agencia) y un enlace dentro de
      otro no es HTML válido —el navegador parte la etiqueta y el resultado es
      impredecible. #}
-  <div class="card">
+  {% set es_nueva = a.id in destacadas %}
+  <div class="card{% if es_nueva %} card-nueva{% endif %}">
     <a class="card-link" href="/asset/{{ a.id }}">
       <div class="card-img">
         {% if a.thumbnail_path %}
@@ -31,6 +32,7 @@
         {% else %}
         <div class="noimg">sin imagen</div>
         {% endif %}
+        {% if es_nueva %}<span class="marca-nueva" title="No la habías visto">nueva</span>{% endif %}
       </div>
       <div class="card-body">
         <div class="card-cap">{{ (a.caption or a.title or '')[:110] }}</div>

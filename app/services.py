@@ -84,6 +84,36 @@ def mark_seen(session: Session, search: Search) -> Search:
     return search
 
 
+def mark_asset_seen(session: Session, asset: Asset) -> Asset:
+    """Marca UNA foto como vista, al abrirla a tamaño completo.
+
+    Es definitivo: una foto que has mirado ya no vuelve a salir destacada,
+    aunque sigas en la misma sesión del navegador.
+    """
+    if asset.seen_at is None:
+        asset.seen_at = utcnow()
+        session.commit()
+    return asset
+
+
+def ids_destacables(assets, frontera: datetime | None) -> set[int]:
+    """De estas fotos, cuáles salen destacadas: las llegadas después de tu
+    última visita y que aún no has abierto.
+
+    ``frontera`` es el momento en que se quedó tu última visita a esta búsqueda.
+    Con None (nunca visitada) no se destaca nada: encender la rejilla entera la
+    primera vez no informa de nada.
+    """
+    if frontera is None:
+        return set()
+    limite = _aware(frontera)
+    return {
+        a.id
+        for a in assets
+        if a.seen_at is None and a.downloaded_at and _aware(a.downloaded_at) > limite
+    }
+
+
 # --- orden del panel y separadores -----------------------------------------
 # Búsquedas y separadores comparten la escala de ``position``, así que el panel
 # es una sola lista ordenada que el usuario coloca a mano desde el modo edición.

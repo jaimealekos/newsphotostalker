@@ -7,6 +7,7 @@ solo lo dinámico llega aquí.
 
 from __future__ import annotations
 
+import json
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -252,11 +253,20 @@ def search_view(
     search = _own_search(db, search_id, user)
     if not search:
         return RedirectResponse("/", status_code=303)
-    # Abrir la búsqueda es "ver las novedades": apaga SOLO esta luz.
+
+    # La frontera: dónde se quedó tu última visita. Se congela en una cookie DE
+    # SESIÓN la primera vez que abres esta búsqueda con este navegador abierto,
+    # justo antes de que `mark_seen` la mueva. De ahí salen las tres conductas:
+    #   · recargar o pasar de página        -> la frontera no se mueve, siguen destacadas
+    #   · abrir una foto                    -> esa deja de estarlo (Asset.seen_at)
+    #   · cerrar el navegador y volver      -> la cookie murió con él y la frontera
+    #                                          pasa a ser el `seen_at` ya avanzado: limpio
+    frontera, hay_que_guardar = _frontera_de_sesion(request, search)
     services.mark_seen(db, search)
+
     per_page = services.get_app_settings(db).photos_per_page
     assets, total = services.search_assets(db, search_id, page=page, per_page=per_page)
-    return templates.TemplateResponse(
+    respuesta = templates.TemplateResponse(
         "search_view.html",
         _ctx(
             request,
@@ -266,8 +276,62 @@ def search_view(
             total=total,
             page=page,
             per_page=per_page,
+            destacadas=services.ids_destacables(assets, frontera),
             user=user,
         ),
+    )
+    if hay_que_guardar is not None:
+        _guarda_fronteras(respuesta, hay_que_guardar)
+    return respuesta
+
+
+#: Cookie DE SESIÓN (sin caducidad: el navegador la borra al cerrarse) con la
+#: frontera de cada búsqueda abierta. Que muera con el navegador no es un
+#: descuido: es justo lo que pide la regla de "se desmarcan al cerrarlo".
+COOKIE_FRONTERAS = "novedades"
+#: Tope de búsquedas recordadas, para que la cookie no crezca sin fin. Se
+#: descartan las más antiguas; volver a una descartada solo significa que sus
+#: novedades ya no salen destacadas.
+MAX_FRONTERAS = 40
+
+
+def _frontera_de_sesion(request: Request, search: Search):
+    """(frontera de esta búsqueda, mapa a guardar en la cookie o None).
+
+    Si ya había frontera para esta búsqueda no se toca: mientras el navegador
+    siga abierto, las mismas fotos siguen destacadas aunque recargues.
+    """
+    fronteras = _lee_fronteras(request)
+    clave = str(search.id)
+    if clave in fronteras:
+        try:
+            return datetime.fromisoformat(fronteras[clave]), None
+        except (TypeError, ValueError):
+            pass  # cookie manipulada o de otra versión: se rehace
+
+    frontera = search.seen_at  # antes de que mark_seen la mueva
+    fronteras[clave] = frontera.isoformat() if frontera else ""
+    if len(fronteras) > MAX_FRONTERAS:
+        fronteras = dict(list(fronteras.items())[-MAX_FRONTERAS:])
+    return frontera, fronteras
+
+
+def _lee_fronteras(request: Request) -> dict:
+    try:
+        datos = json.loads(request.cookies.get(COOKIE_FRONTERAS) or "{}")
+        return datos if isinstance(datos, dict) else {}
+    except ValueError:
+        return {}
+
+
+def _guarda_fronteras(respuesta, fronteras: dict) -> None:
+    respuesta.set_cookie(
+        COOKIE_FRONTERAS,
+        json.dumps(fronteras, separators=(",", ":")),
+        httponly=True,
+        samesite="lax",
+        path="/",
+        # Sin max_age ni expires A PROPÓSITO: así muere al cerrar el navegador.
     )
 
 
@@ -386,6 +450,8 @@ def asset_detail(
     asset = db.get(Asset, asset_id)
     if not asset or not _own_search(db, asset.search_id, user):
         return RedirectResponse("/", status_code=303)
+    # Abrirla es verla: deja de salir destacada en la rejilla, para siempre.
+    services.mark_asset_seen(db, asset)
     prev_id, next_id = services.adjacent_asset_ids(db, asset)
     return templates.TemplateResponse(
         "asset.html", _ctx(request, asset=asset, prev_id=prev_id, next_id=next_id, user=user)

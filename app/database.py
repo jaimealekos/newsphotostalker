@@ -76,6 +76,7 @@ def _bootstrap() -> None:
 
     with session_scope() as session:
         _migrate_searches(session)
+        _migrate_assets(session)
 
         # Al arrancar no hay ninguna ejecución en curso, así que cualquier RunLog
         # que quedara en "running" es de un cierre a medias: se marca terminado
@@ -124,6 +125,19 @@ def _migrate_searches(session: Session) -> None:
         session.execute(
             text("UPDATE searches SET seen_at = :now"), {"now": datetime.now(timezone.utc)}
         )
+
+
+def _migrate_assets(session: Session) -> None:
+    """Añade a ``assets`` las columnas que falten en bases de datos antiguas.
+
+    Solo añade columnas: nunca borra ni reescribe filas. Las fotos que ya
+    estaban quedan con ``seen_at`` a NULL, o sea "sin abrir", que es lo cierto;
+    no salen destacadas igualmente porque son anteriores a tu última visita.
+    """
+    cols = [row[1] for row in session.execute(text("PRAGMA table_info(assets)"))]
+    if "seen_at" not in cols:
+        session.execute(text("ALTER TABLE assets ADD COLUMN seen_at DATETIME"))
+        log.warning("Migración: añadida la columna assets.seen_at")
 
 
 def _collapse_to_single_user(session: Session):
