@@ -109,6 +109,25 @@ jobs:
           [ -f dist/newsphotostalker/config.local.yaml ] || { echo "no creó config.local.yaml"; exit 1; }
           echo "arranca y crea sus datos donde debe"
 
+      - name: Comprobar el lanzador de doble clic (macOS)
+        if: runner.os == 'macOS'
+        # Es la vía que dice el README, y la que fallaba: llegaba una ventana de
+        # Terminal vacía. Se comprueba el camino entero, no que el fichero exista.
+        run: |
+          CMD=dist/newsphotostalker/newsphotostalker.command
+          [ -x "$CMD" ] || { echo "falta $CMD o no es ejecutable"; exit 1; }
+          rm -rf dist/newsphotostalker/data dist/newsphotostalker/config.local.yaml
+          "$CMD" &
+          PID=$!
+          ok=0
+          for i in $(seq 1 40); do
+            sleep 2
+            if curl -fsS http://127.0.0.1:8010/login > /dev/null 2>&1; then ok=1; break; fi
+          done
+          kill $PID 2>/dev/null || true
+          [ "$ok" = "1" ] || { echo "el .command no levantó el panel"; exit 1; }
+          echo "el lanzador de doble clic arranca el programa"
+
       - name: Comprobar que el navegador empaquetado arranca (macOS y Linux)
         if: runner.os != 'Windows'
         run: |

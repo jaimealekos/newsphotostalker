@@ -56,7 +56,7 @@ run it. Python, the browser driver and everything else travels inside.
 | System | What to do |
 |---|---|
 | **Windows** | Double-click `newsphotostalker.bat`. |
-| **macOS** | Right-click `newsphotostalker` → *Open* → *Open*. Or once: `xattr -dr com.apple.quarantine newsphotostalker` |
+| **macOS** | Double-click `newsphotostalker.command`. macOS blocks it the first time — see below. |
 | **Linux** | `./newsphotostalker` — or install it properly with the one-liner below. |
 
 ```sh
@@ -77,6 +77,32 @@ everything; move it and everything comes along.
 
 > **Do not unzip it into `C:\Program Files`** (or anywhere you cannot write):
 > the program needs to create that folder beside itself.
+
+### macOS: the first-run warning
+
+This program is not signed with an Apple developer account, so macOS blocks it
+the first time. **It is not broken** — every small downloaded tool gets this.
+
+1. Double-click `newsphotostalker.command`. A warning appears: click **Cancel**
+   (not *Move to Trash*).
+2. Open **System Settings → Privacy & Security**, scroll to the bottom and click
+   **Open Anyway** next to the program's name.
+3. Double-click again and confirm **Open**.
+
+> On macOS 15 (Sequoia) and later the old *right-click → Open* trick **no longer
+> works**: you have to go through System Settings. If you only get a single
+> "Open" button and get nowhere, this is why.
+
+Prefer one command? Open **Terminal**, type `cd ` (with the space), drag the
+program's folder in from Finder, press Return, then:
+
+```sh
+xattr -dr com.apple.quarantine . && ./newsphotostalker
+```
+
+That clears the quarantine flag from the **whole folder**, which is the part
+that matters: the program carries a browser and its libraries inside, and a
+single still-quarantined piece makes the launch fail without saying anything.
 
 ### On a server
 

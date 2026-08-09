@@ -56,7 +56,7 @@ ejecútalo. Python y todo lo demás viajan dentro.
 | Sistema | Qué hacer |
 |---|---|
 | **Windows** | Doble clic en `newsphotostalker.bat`. |
-| **macOS** | Clic derecho en `newsphotostalker` → *Abrir* → *Abrir*. O una vez: `xattr -dr com.apple.quarantine newsphotostalker` |
+| **macOS** | Doble clic en `newsphotostalker.command`. La primera vez, macOS lo bloquea: ver abajo. |
 | **Linux** | `./newsphotostalker` — o instálalo con la orden de abajo. |
 
 ```sh
@@ -65,6 +65,33 @@ curl -fsSL https://raw.githubusercontent.com/jaimealekos/newsphotostalker/main/i
 
 Se abre una ventana negra (**esa ventana es el programa**: cerrarla lo detiene) y
 el panel en tu navegador. Entra con **`admin` / `admin`** y cámbialo en *ajustes*.
+
+### macOS: el aviso de la primera vez
+
+Este programa no está firmado con una cuenta de desarrollador de Apple (cuesta
+99 $ al año), así que macOS lo bloquea la primera vez. **No es que esté roto.**
+Le pasa igual a cualquier herramienta pequeña que te descargues.
+
+1. Doble clic en `newsphotostalker.command`. Saldrá un aviso de que no se puede
+   abrir. Dale a **Cancelar** (no a la papelera).
+2. Ve a **Ajustes del Sistema → Privacidad y seguridad**, baja hasta abajo y
+   pulsa **«Abrir igualmente»** junto al nombre del programa.
+3. Vuelve a hacer doble clic y confirma **«Abrir»**.
+
+> En macOS 15 (Sequoia) y posteriores, el viejo truco de *clic derecho → Abrir*
+> **ya no funciona**: hay que pasar por Ajustes del Sistema. Si te sale una sola
+> opción de «Abrir» y no llegas a ninguna parte, es esto.
+
+¿Prefieres una orden y acabar? Abre **Terminal**, escribe `cd ` (con el espacio),
+arrastra ahí la carpeta del programa desde el Finder, pulsa Intro y luego:
+
+```sh
+xattr -dr com.apple.quarantine . && ./newsphotostalker
+```
+
+Eso quita la marca de cuarentena a **toda** la carpeta, que es lo que importa: el
+programa lleva dentro un navegador y sus bibliotecas, y basta con que una pieza
+siga marcada para que el arranque falle sin decir nada.
 
 Tus fotos, tu base de datos y la sesión del navegador se crean en una carpeta
 **`data/` junto al lanzador**. Copia esa carpeta y tendrás copia de todo. No lo

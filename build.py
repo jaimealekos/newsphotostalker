@@ -69,6 +69,43 @@ echo El programa se ha detenido. Pulsa una tecla para cerrar esta ventana.
 pause >nul
 """
 
+#: Lanzador de macOS. Un ejecutable de Unix sin extensión se puede abrir con
+#: doble clic, pero es frágil: si el desempaquetado pierde el bit de ejecución,
+#: el Finder deja de verlo como programa y se limita a abrir una ventana de
+#: Terminal vacía, sin un solo mensaje que explique nada. Un ``.command`` sí
+#: tiene extensión conocida, siempre lo ejecuta Terminal, y de paso puede
+#: arreglar lo que el .zip haya estropeado antes de arrancar.
+COMMAND = """\
+#!/bin/sh
+# Doble clic aquí. Esta ventana ES el programa: al cerrarla, se para.
+cd "$(dirname "$0")" || exit 1
+
+# macOS pone en cuarentena TODO lo que sale de un .zip descargado: no solo lo
+# que abres, también las bibliotecas de dentro y el navegador que viaja con el
+# programa. Basta con que una pieza siga marcada para que el arranque muera
+# —a veces en silencio— aunque hayas dado permiso al lanzador. Esto lo limpia
+# de una vez, y no pide contraseña: son ficheros tuyos.
+xattr -dr com.apple.quarantine . 2>/dev/null
+
+# Y el bit de ejecución, que algunos desempaquetadores se dejan por el camino.
+chmod +x ./newsphotostalker 2>/dev/null
+
+./newsphotostalker "$@"
+estado=$?
+
+# Si algo falla, la ventana NO se cierra: el mensaje de error es justo lo que
+# hace falta para arreglarlo, y cerrarla se lo lleva por delante.
+if [ "$estado" -ne 0 ]; then
+  echo
+  echo "----------------------------------------------------------------"
+  echo "newsphotostalker ha terminado con el error $estado."
+  echo "Copia el texto de arriba: es lo que hace falta para diagnosticarlo."
+  echo "----------------------------------------------------------------"
+  printf "Pulsa Intro para cerrar esta ventana. "
+  read -r _
+fi
+"""
+
 
 def _descarga(url: str, destino: Path) -> None:
     print(f"   bajando {url.rsplit('/', 1)[-1]}")
@@ -180,7 +217,13 @@ def build_pyinstaller(salida: Path, trabajo: Path) -> Path:
     ]
     if subprocess.run(orden, cwd=RAIZ).returncode != 0:
         raise SystemExit("PyInstaller ha fallado; revisa la salida de arriba")
-    return salida / NOMBRE
+    carpeta = salida / NOMBRE
+    if sys.platform == "darwin":
+        lanzador = carpeta / f"{NOMBRE}.command"
+        lanzador.write_text(COMMAND, encoding="utf-8")
+        lanzador.chmod(0o755)
+        print(f"== lanzador de macOS: {lanzador.name} ==")
+    return carpeta
 
 
 # --- común ------------------------------------------------------------------
