@@ -134,7 +134,10 @@ class APAdapter(HttpAdapter):
             credit=f"{photographer}/AP" if photographer else "AP",
             captured_at=_safe_date(src),
             keywords=[query] + ([title] if title else []),
-            detail_url=f"https://newsroom.ap.org/editorial-photos-videos/search?st={itemid}",
+            # `query`, no `st`: en la web de AP `st` es el TIPO de búsqueda, no
+            # el término. Con `st` el enlace «Ver en la agencia» abría una
+            # página vacía. Leído en su propio código: this.query=p.get("query").
+            detail_url=f"https://newsroom.ap.org/editorial-photos-videos/search?query={itemid}",
             # La rendition /thumbnail/ de AP es ~125px y se ve pixelada; como
             # en el resto de agencias, la miniatura reutiliza la preview.
             thumbnail_url=None,

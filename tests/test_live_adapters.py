@@ -25,6 +25,21 @@ def test_ap_photographer_query_uses_field_dsl():
     assert ad.build_query("text", "Madrid APTOPIX") == "Madrid APTOPIX"
 
 
+def test_ap_detail_url_usa_query_no_st():
+    """El enlace «Ver en la agencia» de cada foto de AP.
+
+    `st` es el TIPO de búsqueda en su web, no el término: con `st` el enlace
+    abría una página en blanco. Leído en el código de su propia web.
+    """
+    ad = APAdapter(_settings(), _settings().credentials_for("ap"))
+    asset = ad._parse_item({"_source": {"itemid": "abc123"}}, "text", "x")
+    assert asset is not None, "el objeto de prueba tiene que parsearse de verdad"
+    assert asset.detail_url == (
+        "https://newsroom.ap.org/editorial-photos-videos/search?query=abc123"
+    )
+    assert "?st=" not in asset.detail_url
+
+
 def test_ap_rejects_corrupt_future_dates():
     # A year-2060 firstcreated must be ignored (falls back / None).
     assert _safe_date({"firstcreated": "2060-04-06T10:10:32Z"}) is None

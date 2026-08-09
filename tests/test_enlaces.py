@@ -29,14 +29,19 @@ def test_afp_va_por_getty_pero_acotado_a_su_coleccion():
     assert "collections=afp" in url
 
 
-def test_ap_manda_el_nombre_a_secas_no_el_lenguaje_de_campos():
-    """Su API entiende `photographer.name:"…"`, pero su BUSCADOR WEB no: con eso
-    la página sale vacía. Probado en vivo el 2026-08-09."""
+def test_ap_manda_el_termino_en_query_y_no_en_st():
+    """`st` es el TIPO de búsqueda en la web de AP, no el término.
+
+    Se leyó en su propio código —`this.query=p.get("query")`,
+    `this.searchType=p.get("st")`— después de que dos versiones del enlace
+    dejaran la página en blanco. Si alguien vuelve a poner `st=`, este test cae.
+    """
     url = url_del_fotografo("ap", "Emilio Morenatti")
     assert url == (
-        "https://newsroom.ap.org/editorial-photos-videos/search?st=Emilio%20Morenatti"
+        "https://newsroom.ap.org/editorial-photos-videos/search?query=Emilio%20Morenatti"
     )
-    assert "photographer.name" not in url
+    assert "?st=" not in url and "&st=" not in url
+    assert "photographer.name" not in url  # su API lo entiende; su web, no
 
 
 @pytest.mark.parametrize("nombre", [None, "", "   "])

@@ -17,17 +17,21 @@ from urllib.parse import quote, quote_plus
 from .ingest.getty import SEARCH_BASE as GETTY_BASE
 from .ingest.reuters import SEARCH_URL as REUTERS_BUSQUEDA
 
-#: AP Newsroom, la web que hay detrás de la API anónima que usa el adaptador.
-#: ``st`` es el término de búsqueda, y va el nombre a secas.
+#: AP Newsroom. El término de búsqueda va en ``query``.
 #:
-#: OJO, que cuesta una hora si no se sabe: la API de AP **sí** entiende el
-#: lenguaje de campos (comprobado: ``photographer.name:"Emilio Morenatti"``
-#: devuelve 28.770 filas y un campo inventado devuelve 0, o sea que lo parsea de
-#: verdad), pero **el buscador de la web NO**: mandarle ``photographer.name:"…"``
-#: por ``st`` no devuelve ningún resultado. Así que aquí va el nombre tal cual.
-#: A cambio, la búsqueda es por texto y trae también fotos donde a esa persona
-#: la mencionan sin ser suyas: unas 80 de más sobre 28.770, un 0,3 %.
-AP_BUSQUEDA = "https://newsroom.ap.org/editorial-photos-videos/search?st={q}"
+#: **``st`` NO es el término**, aunque lo parezca: es el TIPO de búsqueda. Se
+#: leyó en el propio código de su web, que hace
+#: ``this.query = p.get("query"), this.searchType = p.get("st")``. Mandar el
+#: nombre por ``st`` deja la página en blanco, que es exactamente lo que pasaba.
+#: Lo confirma la propia AP por otro lado: ``apimages.com/Search?query=<nombre>``
+#: redirige a ``newsroom.ap.org/editorial-photos-videos/…?query=<nombre>``.
+#:
+#: Va el nombre tal cual y no ``photographer.name:"…"``: ese lenguaje de campos
+#: lo entiende su API (comprobado: un campo inventado devuelve 0 filas y
+#: ``photographer.name`` devuelve 28.770), pero su buscador web no lo aplicó.
+#: A cambio la búsqueda es por texto y trae también fotos donde a esa persona la
+#: mencionan sin ser suyas: unas 80 sobre 28.770, un 0,3 %.
+AP_BUSQUEDA = "https://newsroom.ap.org/editorial-photos-videos/search?query={q}"
 
 
 def url_del_fotografo(agency: str, nombre: str | None) -> str | None:

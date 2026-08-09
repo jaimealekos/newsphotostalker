@@ -139,6 +139,20 @@ def _migrate_assets(session: Session) -> None:
         session.execute(text("ALTER TABLE assets ADD COLUMN seen_at DATETIME"))
         log.warning("Migración: añadida la columna assets.seen_at")
 
+    # Los enlaces «Ver en la agencia» de AP se guardaron con `st=`, que en su web
+    # es el TIPO de búsqueda y no el término: abrían una página vacía. Se
+    # reescribe el parámetro en las fotos ya guardadas. Solo cambia esa palabra
+    # dentro de la URL; no toca ninguna otra columna ni borra ninguna fila.
+    arreglados = session.execute(
+        text(
+            "UPDATE assets SET detail_url = REPLACE(detail_url, "
+            "'/editorial-photos-videos/search?st=', '/editorial-photos-videos/search?query=') "
+            "WHERE agency = 'ap' AND detail_url LIKE '%/editorial-photos-videos/search?st=%'"
+        )
+    ).rowcount
+    if arreglados:
+        log.warning("Migración: corregidos %s enlaces a AP (st= -> query=)", arreglados)
+
 
 def _collapse_to_single_user(session: Session):
     """Deja una sola cuenta y la devuelve (None si la base está vacía).
