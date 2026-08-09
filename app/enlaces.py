@@ -18,9 +18,15 @@ from .ingest.getty import SEARCH_BASE as GETTY_BASE
 from .ingest.reuters import SEARCH_URL as REUTERS_BUSQUEDA
 
 #: AP Newsroom, la web que hay detrás de la API anónima que usa el adaptador.
-#: ``st`` es el término de búsqueda y admite el mismo lenguaje de campos, así
-#: que se manda ``photographer.name:"…"`` para buscar por autoría y no por
-#: aparecer citado en un pie de foto.
+#: ``st`` es el término de búsqueda, y va el nombre a secas.
+#:
+#: OJO, que cuesta una hora si no se sabe: la API de AP **sí** entiende el
+#: lenguaje de campos (comprobado: ``photographer.name:"Emilio Morenatti"``
+#: devuelve 28.770 filas y un campo inventado devuelve 0, o sea que lo parsea de
+#: verdad), pero **el buscador de la web NO**: mandarle ``photographer.name:"…"``
+#: por ``st`` no devuelve ningún resultado. Así que aquí va el nombre tal cual.
+#: A cambio, la búsqueda es por texto y trae también fotos donde a esa persona
+#: la mencionan sin ser suyas: unas 80 de más sobre 28.770, un 0,3 %.
 AP_BUSQUEDA = "https://newsroom.ap.org/editorial-photos-videos/search?st={q}"
 
 
@@ -52,5 +58,5 @@ def url_del_fotografo(agency: str, nombre: str | None) -> str | None:
             partes.append("collections=afp")
         return f"{GETTY_BASE}?{'&'.join(partes)}"
     if agencia == "ap":
-        return AP_BUSQUEDA.format(q=quote(f'photographer.name:"{nombre}"'))
+        return AP_BUSQUEDA.format(q=quote(nombre))
     return None

@@ -29,11 +29,14 @@ def test_afp_va_por_getty_pero_acotado_a_su_coleccion():
     assert "collections=afp" in url
 
 
-def test_ap_busca_por_el_mismo_campo_que_consulta_la_app():
+def test_ap_manda_el_nombre_a_secas_no_el_lenguaje_de_campos():
+    """Su API entiende `photographer.name:"…"`, pero su BUSCADOR WEB no: con eso
+    la página sale vacía. Probado en vivo el 2026-08-09."""
     url = url_del_fotografo("ap", "Emilio Morenatti")
-    assert url.startswith("https://newsroom.ap.org/editorial-photos-videos/search?st=")
-    assert "photographer.name" in url
-    assert "Emilio%20Morenatti" in url
+    assert url == (
+        "https://newsroom.ap.org/editorial-photos-videos/search?st=Emilio%20Morenatti"
+    )
+    assert "photographer.name" not in url
 
 
 @pytest.mark.parametrize("nombre", [None, "", "   "])
