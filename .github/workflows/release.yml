@@ -178,8 +178,17 @@ jobs:
             | System | File | Run |
             |---|---|---|
             | **Windows** | `…-windows-…zip` | double-click `newsphotostalker.bat` |
-            | **macOS** | `…-macos-…zip` | right-click `newsphotostalker` → *Open* → *Open* |
+            | **macOS** | `…-macos-…zip` | double-click `newsphotostalker.command` — see below |
             | **Linux** | `…-linux-…zip` | `./newsphotostalker` |
+
+            > **macOS blocks it the first time.** This program is not signed with
+            > an Apple developer account, so you get a warning: click **Cancel**,
+            > then open **System Settings → Privacy & Security**, scroll down and
+            > click **Open Anyway**. Double-click again and confirm.
+            >
+            > On macOS 15 (Sequoia) and later the old *right-click → Open* trick
+            > **no longer works** — you have to go through System Settings. If you
+            > only get a single "Open" button and get nowhere, that is why.
 
             Then the panel opens by itself. Sign in with **`admin` / `admin`** and
             change it under settings → your account (`ajustes → tu cuenta`). The
