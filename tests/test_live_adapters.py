@@ -35,9 +35,10 @@ def test_ap_detail_url_usa_query_no_st():
     asset = ad._parse_item({"_source": {"itemid": "abc123"}}, "text", "x")
     assert asset is not None, "el objeto de prueba tiene que parsearse de verdad"
     assert asset.detail_url == (
-        "https://newsroom.ap.org/editorial-photos-videos/search?query=abc123"
+        "https://newsroom.ap.org/editorial-photos-videos/search"
+        "?query=abc123&mediaType=photo&st=keyword"
     )
-    assert "?st=" not in asset.detail_url
+    assert "?st=" not in asset.detail_url  # el id nunca va en `st`
 
 
 def test_ap_rejects_corrupt_future_dates():

@@ -31,7 +31,22 @@ from .ingest.reuters import SEARCH_URL as REUTERS_BUSQUEDA
 #: ``photographer.name`` devuelve 28.770), pero su buscador web no lo aplicó.
 #: A cambio la búsqueda es por texto y trae también fotos donde a esa persona la
 #: mencionan sin ser suyas: unas 80 sobre 28.770, un 0,3 %.
-AP_BUSQUEDA = "https://newsroom.ap.org/editorial-photos-videos/search?query={q}"
+#:
+#: Y **``mediaType`` no es opcional**, aunque lo parezca. Su buscador hace:
+#:
+#:     mapFromString(z) { if (z) {…} return null }
+#:     …
+#:     this.searchByMediaType(this.mediaType)
+#:
+#: Sin ese parámetro el tipo de medio sale ``null`` y la página se queda en
+#: blanco: encuentra los resultados (el paginador aparece) pero no pinta ni una
+#: foto hasta que navegas a otra página y vuelves. ``st=keyword`` es lo que pone
+#: su propia interfaz al buscar; no dispara nada por sí solo, pero se manda por
+#: coherencia con lo que hace AP.
+AP_BUSQUEDA = (
+    "https://newsroom.ap.org/editorial-photos-videos/search"
+    "?query={q}&mediaType=photo&st=keyword"
+)
 
 
 def url_del_fotografo(agency: str, nombre: str | None) -> str | None:

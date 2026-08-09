@@ -153,6 +153,20 @@ def _migrate_assets(session: Session) -> None:
     if arreglados:
         log.warning("Migración: corregidos %s enlaces a AP (st= -> query=)", arreglados)
 
+    # Y les falta el tipo de medio: sin `mediaType` la web de AP encuentra los
+    # resultados pero no pinta ninguna foto. Se añade a las que no lo llevan.
+    # Idempotente: la condición excluye las que ya lo tienen.
+    completados = session.execute(
+        text(
+            "UPDATE assets SET detail_url = detail_url || '&mediaType=photo&st=keyword' "
+            "WHERE agency = 'ap' "
+            "  AND detail_url LIKE '%/editorial-photos-videos/search?query=%' "
+            "  AND detail_url NOT LIKE '%mediaType=%'"
+        )
+    ).rowcount
+    if completados:
+        log.warning("Migración: completados %s enlaces a AP (+mediaType)", completados)
+
 
 def _collapse_to_single_user(session: Session):
     """Deja una sola cuenta y la devuelve (None si la base está vacía).

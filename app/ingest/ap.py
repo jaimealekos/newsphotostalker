@@ -134,10 +134,15 @@ class APAdapter(HttpAdapter):
             credit=f"{photographer}/AP" if photographer else "AP",
             captured_at=_safe_date(src),
             keywords=[query] + ([title] if title else []),
-            # `query`, no `st`: en la web de AP `st` es el TIPO de búsqueda, no
-            # el término. Con `st` el enlace «Ver en la agencia» abría una
-            # página vacía. Leído en su propio código: this.query=p.get("query").
-            detail_url=f"https://newsroom.ap.org/editorial-photos-videos/search?query={itemid}",
+            # Los tres parámetros hacen falta, y ninguno es evidente (el porqué,
+            # con las líneas de su código, en app/enlaces.py):
+            #   query      el término. `st` NO lo es: es el tipo de búsqueda.
+            #   mediaType  sin él la página no pinta nada aunque encuentre.
+            #   st=keyword lo que pone su propia interfaz.
+            detail_url=(
+                "https://newsroom.ap.org/editorial-photos-videos/search"
+                f"?query={itemid}&mediaType=photo&st=keyword"
+            ),
             # La rendition /thumbnail/ de AP es ~125px y se ve pixelada; como
             # en el resto de agencias, la miniatura reutiliza la preview.
             thumbnail_url=None,

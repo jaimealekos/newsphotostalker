@@ -38,10 +38,17 @@ def test_ap_manda_el_termino_en_query_y_no_en_st():
     """
     url = url_del_fotografo("ap", "Emilio Morenatti")
     assert url == (
-        "https://newsroom.ap.org/editorial-photos-videos/search?query=Emilio%20Morenatti"
+        "https://newsroom.ap.org/editorial-photos-videos/search"
+        "?query=Emilio%20Morenatti&mediaType=photo&st=keyword"
     )
-    assert "?st=" not in url and "&st=" not in url
+    assert "?st=" not in url          # el término nunca va en `st`
     assert "photographer.name" not in url  # su API lo entiende; su web, no
+
+
+def test_ap_lleva_el_tipo_de_medio():
+    """Sin `mediaType`, la web de AP encuentra los resultados pero no pinta ni
+    una foto hasta que navegas a otra página y vuelves. Probado en vivo."""
+    assert "mediaType=photo" in url_del_fotografo("ap", "Quien Sea")
 
 
 @pytest.mark.parametrize("nombre", [None, "", "   "])
