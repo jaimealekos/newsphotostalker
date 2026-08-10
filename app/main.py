@@ -238,7 +238,7 @@ def create_search(
     retention_mb: str = Form(""),
     enabled: str = Form("on"),
 ):
-    services.create_search(db, locals_to_form(locals()), user.id)
+    services.create_search(db, locals_to_form(locals()), user.id, primera_carga=True)
     return RedirectResponse("/", status_code=303)
 
 

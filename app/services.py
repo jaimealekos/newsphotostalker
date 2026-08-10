@@ -42,7 +42,9 @@ RETENTION_CHOICES = [(RETENTION_TIME, "Por tiempo (meses)"), (RETENTION_SIZE, "P
 # Nota: el refresco es GLOBAL (un job que corre todas las búsquedas juntas,
 # ver scheduler.py). Crear/editar/activar una búsqueda ya NO programa un job
 # propio; enabled solo decide si el refresco global la incluye.
-def create_search(session: Session, form: dict, user_id: int) -> Search:
+def create_search(
+    session: Session, form: dict, user_id: int, *, primera_carga: bool = False
+) -> Search:
     search = Search(
         user_id=user_id,
         position=_next_position(session, user_id),
@@ -53,6 +55,14 @@ def create_search(session: Session, form: dict, user_id: int) -> Search:
     )
     session.add(search)
     session.commit()
+
+    if primera_carga and search.enabled:
+        # Una búsqueda recién creada está vacía, y esperar al refresco global
+        # —que puede ser dentro de horas— para ver la primera foto no tiene
+        # sentido: nadie crea una búsqueda para no mirarla. Se lanza ya, en
+        # segundo plano, para no dejar colgada la petición del navegador; el
+        # panel muestra mientras tanto su indicador de trabajo en curso.
+        scheduler.run_now(search.id)
     return search
 
 
