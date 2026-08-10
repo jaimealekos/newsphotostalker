@@ -9,6 +9,14 @@ pydantic-settings==2.7.1
 pyyaml==6.0.2
 pillow==11.1.0
 psutil==6.1.1
+# Icono junto al reloj (Windows) / en la barra de menús (macOS), para que el
+# programa no necesite una ventana de consola abierta. En Windows habla con la
+# API del sistema por ctypes, sin nada compilado; en macOS necesita el puente
+# con Cocoa, que por eso va marcado solo para ese sistema. En Linux se deja
+# fuera a propósito: allí hay media docena de entornos de escritorio y el
+# programa se usa sobre todo en servidores sin pantalla.
+pystray==0.19.5
+pyobjc-framework-Cocoa==11.0; sys_platform == "darwin"
 python-dateutil==2.9.0.post0
 tenacity==9.0.0
 pytest==8.3.4

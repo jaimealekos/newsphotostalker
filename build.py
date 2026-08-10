@@ -60,13 +60,81 @@ GET_PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
 
 BAT = """\
 @echo off
-title newsphotostalker
+rem Arranca SIN ventana de consola: pythonw.exe no la crea, y el programa vive
+rem en el icono junto al reloj (ahi se abre el panel y se sale). Antes la
+rem ventana negra ERA el programa —cerrarla lo mataba— y ademas dejaba a la
+rem vista sus tripas: peticiones HTTP, avisos de Chrome, trazas.
+rem
+rem Si algo falla al arrancar, el programa saca un aviso del sistema y deja el
+rem detalle en data\\newsphotostalker.log: sin consola, un fallo mudo dejaria al
+rem usuario mirando una pantalla donde no pasa nada.
 cd /d "%~dp0"
 set "NPS_PORTABLE=1"
-"%~dp0python\\python.exe" "%~dp0run.py" %*
+start "" "%~dp0python\\pythonw.exe" "%~dp0run.py" %*
+exit
+"""
+
+#: Ventana de consola a proposito, para cuando algo va mal: ensena el log y no
+#: se cierra sola. El .bat normal no muestra nada.
+BAT_CONSOLA = """\
+@echo off
+title newsphotostalker (modo consola)
+cd /d "%~dp0"
+set "NPS_PORTABLE=1"
+echo Modo consola: aqui se ve lo que hace el programa por dentro.
+echo.
+"%~dp0python\\python.exe" "%~dp0run.py" --sin-icono %*
 echo.
 echo El programa se ha detenido. Pulsa una tecla para cerrar esta ventana.
 pause >nul
+"""
+
+#: Envoltorio .app de macOS. Es la forma de que un doble clic NO abra una
+#: Terminal: el sistema trata como programa a cualquier carpeta con esta
+#: estructura, y ejecuta lo que diga CFBundleExecutable sin ventana ninguna.
+#:
+#: No se usa el empaquetado .app de PyInstaller a propósito: eso mueve el
+#: ejecutable dentro del bundle y con él la carpeta `data/` del usuario, que
+#: acabaría ENTRE las tripas del programa. Así el binario y los datos se quedan
+#: donde estaban y el .app solo es una puerta.
+#:
+#: LSUIElement: sin icono en el Dock. El programa vive en la barra de menús,
+#: que es justo lo que se buscaba.
+INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" \
+"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>newsphotostalker</string>
+  <key>CFBundleDisplayName</key><string>newsphotostalker</string>
+  <key>CFBundleIdentifier</key><string>com.jaimealekos.newsphotostalker</string>
+  <key>CFBundleExecutable</key><string>newsphotostalker</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleVersion</key><string>{version}</string>
+  <key>CFBundleShortVersionString</key><string>{version}</string>
+  <key>LSUIElement</key><true/>
+  <key>NSHighResolutionCapable</key><true/>
+</dict>
+</plist>
+"""
+
+APP_LANZADOR = """\
+#!/bin/sh
+# Puerta de entrada en macOS: doble clic en newsphotostalker.app.
+# No abre ninguna Terminal; el programa aparece en la barra de menús.
+#
+# Sube tres niveles porque este script vive en
+#   newsphotostalker.app/Contents/MacOS/
+# y el programa de verdad está en la carpeta que contiene al .app.
+CARPETA="$(cd "$(dirname "$0")/../../.." && pwd)" || exit 1
+cd "$CARPETA" || exit 1
+
+# macOS pone en cuarentena todo lo que sale de un .zip descargado, y basta una
+# pieza marcada para que el arranque muera. Son ficheros tuyos: no pide clave.
+xattr -dr com.apple.quarantine . 2>/dev/null
+chmod +x ./newsphotostalker 2>/dev/null
+
+exec ./newsphotostalker "$@"
 """
 
 #: Lanzador de macOS. Un ejecutable de Unix sin extensión se puede abrir con
@@ -165,6 +233,7 @@ def build_portable_windows(salida: Path) -> Path:
     shutil.copy2(RAIZ / "run.py", dest / "run.py")
     shutil.copy2(RAIZ / "config.example.yaml", dest / "config.example.yaml")
     (dest / f"{NOMBRE}.bat").write_text(BAT, encoding="utf-8")
+    (dest / f"{NOMBRE} (consola).bat").write_text(BAT_CONSOLA, encoding="utf-8")
     return dest
 
 
@@ -219,11 +288,28 @@ def build_pyinstaller(salida: Path, trabajo: Path) -> Path:
         raise SystemExit("PyInstaller ha fallado; revisa la salida de arriba")
     carpeta = salida / NOMBRE
     if sys.platform == "darwin":
-        lanzador = carpeta / f"{NOMBRE}.command"
+        # El .command sigue, pero ya no es la puerta principal: queda como modo
+        # consola para cuando algo falla y hace falta ver el detalle.
+        lanzador = carpeta / f"{NOMBRE} (consola).command"
         lanzador.write_text(COMMAND, encoding="utf-8")
         lanzador.chmod(0o755)
-        print(f"== lanzador de macOS: {lanzador.name} ==")
+        monta_app_macos(carpeta)
     return carpeta
+
+
+def monta_app_macos(carpeta: Path) -> Path:
+    """Crea el envoltorio .app dentro de la carpeta del programa."""
+    app = carpeta / f"{NOMBRE}.app"
+    macos = app / "Contents" / "MacOS"
+    macos.mkdir(parents=True, exist_ok=True)
+    (app / "Contents" / "Info.plist").write_text(
+        INFO_PLIST.format(version=version()), encoding="utf-8"
+    )
+    binario = macos / NOMBRE
+    binario.write_text(APP_LANZADOR, encoding="utf-8")
+    binario.chmod(0o755)
+    print(f"== lanzador de macOS: {app.name} (y el modo consola aparte) ==")
+    return app
 
 
 # --- común ------------------------------------------------------------------
