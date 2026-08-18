@@ -25,9 +25,13 @@ Guía de uso completa. Para una visión rápida, mira el [README](README.md).
 
 Descomprime el `.zip` de la [release](../../releases) y haz doble clic en
 `newsphotostalker.bat`. No hay instalador ni hace falta tener Python: el paquete
-trae dentro su propia copia de Python. La ventana negra que se abre **es** el
-programa, y cerrarla lo detiene. En la carpeta está todo a la vista: `python\`,
-`app\`, `run.py`.
+trae dentro su propia copia de Python. No se abre ninguna ventana: el programa
+vive en el **icono junto al reloj**, desde donde se abre el panel y se sale. En
+la carpeta está todo a la vista: `python\`, `app\`, `run.py`.
+
+¿Algo falla y quieres ver qué pasa por dentro? `newsphotostalker (consola).bat`
+arranca igual pero con ventana, enseñando el detalle; y el registro queda
+siempre en `data/newsphotostalker.log`, se use el lanzador que se use.
 
 Junto al `.bat` aparecen, la primera vez:
 
@@ -175,15 +179,22 @@ O desde la línea de órdenes, si trabajas con el código:
 python -m scripts.login_reuters      # Windows: login_reuters.bat
 ```
 
-**No hace falta poner tu contraseña de Reuters en ningún fichero.** La sesión
-queda en el perfil del navegador y las ejecuciones la reutilizan. Los campos
-`username`/`password` de la configuración son opcionales: solo sirven si prefieres
-que el programa intente el login automático, que DataDome suele frenar.
+**El programa no teclea tu contraseña jamás, ni hay que ponerla en ningún
+fichero.** Reuters contabiliza los intentos de login automatizados como intentos
+fallidos y acaba bloqueando la cuenta (pasó, y por eso se eliminó): el login lo
+haces siempre tú, a mano. El campo `password` de la configuración no se usa;
+`username` es solo un recordatorio de qué cuenta es.
 
 Se abre tu navegador (Chrome o Edge) en la página de login. Entra —email,
 contraseña y el CAPTCHA de DataDome si aparece— hasta ver tu panel de Reuters, y
-**cierra la ventana**. La sesión queda en el perfil (`data/browser/reuters`) y se
-reutiliza; si caduca, repite el login.
+**cierra la ventana: la sesión se comprueba y se guarda sola**. Queda en el
+perfil (`data/browser/reuters`) y se reutiliza.
+
+A partir de ahí, la app **mantiene la sesión viva ella sola**: cada hora hace una
+búsqueda mínima que renueva el token (`reuters_keepalive_minutes`, 60 por
+defecto; 0 la apaga). Aun así la sesión tiene fecha de caducidad —semanas; el
+programa mide cuánto aguanta de verdad— y cuando muera lo dirá el panel (y el
+aviso por webhook, si lo tienes): repites el login y listo, un minuto.
 
 **Se usa tu navegador tal cual, sin automatizar, a propósito.** DataDome ficha la
 huella de un navegador conducido por software y planta un CAPTCHA que se atasca; un
@@ -213,7 +224,8 @@ Consejos:
 `mode` en `config.local.yaml`:
 
 - **mock**: fotos sintéticas realistas. Prueba todo sin tocar los servicios reales.
-- **live**: adaptadores reales (necesita credenciales de Reuters para esa agencia).
+- **live**: adaptadores reales (para Reuters hace falta haber iniciado sesión a
+  mano una vez; el resto no pide nada).
 
 ## Resolución de las fotos
 
@@ -278,7 +290,7 @@ app/
     base.py, http_base.py, live_base.py   Bases de adaptador
     ap.py, getty.py, reuters.py, mock.py  Adaptadores
     runner.py     Orquesta una ejecución / backfill
-    keepalive.py  Mantiene viva la sesión de Reuters (opcional)
+    keepalive.py  Mantiene viva la sesión de Reuters (búsqueda mínima cada hora)
 scripts/  seed.py · run_once.py · login_reuters.py
 tests/    batería de pruebas
 ```

@@ -56,15 +56,18 @@ ejecútalo. Python y todo lo demás viajan dentro.
 | Sistema | Qué hacer |
 |---|---|
 | **Windows** | Doble clic en `newsphotostalker.bat`. |
-| **macOS** | Doble clic en `newsphotostalker.command`. La primera vez, macOS lo bloquea: ver abajo. |
+| **macOS** | Doble clic en `newsphotostalker.app`. La primera vez, macOS lo bloquea: ver abajo. |
 | **Linux** | `./newsphotostalker` — o instálalo con la orden de abajo. |
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/jaimealekos/newsphotostalker/main/install.sh | sh
 ```
 
-Se abre una ventana negra (**esa ventana es el programa**: cerrarla lo detiene) y
-el panel en tu navegador. Entra con **`admin` / `admin`** y cámbialo en *ajustes*.
+No se abre ninguna ventana: el programa vive en el **icono junto al reloj** (en
+macOS, en la barra de menús) y el panel se abre en tu navegador; desde el icono
+se reabre el panel y se sale. Entra con **`admin` / `admin`** y cámbialo en
+*ajustes*. Si algo falla, el lanzador **`(consola)`** arranca con ventana y
+enseña el detalle, y todo queda también en `data/newsphotostalker.log`.
 
 ### macOS: el aviso de la primera vez
 
@@ -72,7 +75,7 @@ Este programa no está firmado con una cuenta de desarrollador de Apple (cuesta
 99 $ al año), así que macOS lo bloquea la primera vez. **No es que esté roto.**
 Le pasa igual a cualquier herramienta pequeña que te descargues.
 
-1. Doble clic en `newsphotostalker.command`. Saldrá un aviso de que no se puede
+1. Doble clic en `newsphotostalker.app`. Saldrá un aviso de que no se puede
    abrir. Dale a **Cancelar** (no a la papelera).
 2. Ve a **Ajustes del Sistema → Privacidad y seguridad**, baja hasta abajo y
    pulsa **«Abrir igualmente»** junto al nombre del programa.
@@ -128,10 +131,13 @@ y de la agencia.
 
 Reuters Connect exige sesión y está tras un muro anti-bot, así que entras **a mano
 una vez** desde *ajustes → iniciar sesión en Reuters*. Se abre tu navegador normal,
-inicias sesión y se guarda. **Es la única ventana que verás**: a partir de ahí las
-búsquedas corren sin abrir nada, y tu contraseña no se escribe en ningún fichero.
-En un servidor sin pantalla, entra en tu portátil y trae la sesión con *exportar
-sesión* / *importar sesión*. Todo el detalle, en el [manual](MANUAL.md).
+inicias sesión y, al cerrar la ventana, la sesión se comprueba y se guarda sola.
+**Es la única ventana que verás**: a partir de ahí las búsquedas corren sin abrir
+nada. El programa **nunca teclea tu contraseña** —el login siempre lo haces tú— y
+mantiene la sesión viva él solo; cuando Reuters la caduque, te lo dice y repites
+el login: un minuto. En un servidor sin pantalla, entra en tu portátil y trae la
+sesión con *exportar sesión* / *importar sesión*. Todo el detalle, en el
+[manual](MANUAL.md).
 
 ---
 

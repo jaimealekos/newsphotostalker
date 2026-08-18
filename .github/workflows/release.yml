@@ -109,13 +109,18 @@ jobs:
           [ -f dist/newsphotostalker/config.local.yaml ] || { echo "no creó config.local.yaml"; exit 1; }
           echo "arranca y crea sus datos donde debe"
 
-      - name: Comprobar el lanzador de doble clic (macOS)
+      - name: Comprobar los lanzadores (macOS)
         if: runner.os == 'macOS'
-        # Es la vía que dice el README, y la que fallaba: llegaba una ventana de
-        # Terminal vacía. Se comprueba el camino entero, no que el fichero exista.
+        # La puerta principal es ahora el .app (sin Terminal); el .command quedó
+        # como modo consola. El arranque completo se prueba con el .command —en
+        # un runner sin sesión gráfica es la vía determinista— y del .app se
+        # comprueba la estructura: su ejecutable interno y el Info.plist.
         run: |
-          CMD=dist/newsphotostalker/newsphotostalker.command
-          [ -x "$CMD" ] || { echo "falta $CMD o no es ejecutable"; exit 1; }
+          APP=dist/newsphotostalker/newsphotostalker.app
+          [ -x "$APP/Contents/MacOS/newsphotostalker" ] || { echo "falta el ejecutable interno del .app"; exit 1; }
+          [ -f "$APP/Contents/Info.plist" ] || { echo "falta el Info.plist del .app"; exit 1; }
+          CMD="dist/newsphotostalker/newsphotostalker (consola).command"
+          [ -x "$CMD" ] || { echo "falta el .command de consola o no es ejecutable"; exit 1; }
           rm -rf dist/newsphotostalker/data dist/newsphotostalker/config.local.yaml
           "$CMD" &
           PID=$!
@@ -125,8 +130,8 @@ jobs:
             if curl -fsS http://127.0.0.1:8010/login > /dev/null 2>&1; then ok=1; break; fi
           done
           kill $PID 2>/dev/null || true
-          [ "$ok" = "1" ] || { echo "el .command no levantó el panel"; exit 1; }
-          echo "el lanzador de doble clic arranca el programa"
+          [ "$ok" = "1" ] || { echo "el .command de consola no levantó el panel"; exit 1; }
+          echo "lanzadores de macOS en su sitio; el programa arranca"
 
       - name: Comprobar que el navegador empaquetado arranca (macOS y Linux)
         if: runner.os != 'Windows'
@@ -178,7 +183,7 @@ jobs:
             | System | File | Run |
             |---|---|---|
             | **Windows** | `…-windows-…zip` | double-click `newsphotostalker.bat` |
-            | **macOS** | `…-macos-…zip` | double-click `newsphotostalker.command` — see below |
+            | **macOS** | `…-macos-…zip` | double-click `newsphotostalker.app` — see below |
             | **Linux** | `…-linux-…zip` | `./newsphotostalker` |
 
             > **macOS blocks it the first time.** This program is not signed with

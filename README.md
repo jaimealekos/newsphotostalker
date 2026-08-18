@@ -56,16 +56,19 @@ run it. Python, the browser driver and everything else travels inside.
 | System | What to do |
 |---|---|
 | **Windows** | Double-click `newsphotostalker.bat`. |
-| **macOS** | Double-click `newsphotostalker.command`. macOS blocks it the first time — see below. |
+| **macOS** | Double-click `newsphotostalker.app`. macOS blocks it the first time — see below. |
 | **Linux** | `./newsphotostalker` — or install it properly with the one-liner below. |
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/jaimealekos/newsphotostalker/main/install.sh | sh
 ```
 
-A terminal window opens (**that window is the program** — closing it stops it)
-and the panel opens in your browser. Sign in with **`admin` / `admin`** and
-change it in the settings page.
+No window opens: the program lives in an **icon next to the clock** (on macOS,
+in the menu bar) and the panel opens in your browser — the icon reopens the
+panel and quits the program. Sign in with **`admin` / `admin`** and change it in
+the settings page. If something goes wrong, the **`(consola)`** launcher starts
+with a visible window showing the details, and everything is also logged to
+`data/newsphotostalker.log`.
 
 > The panel itself is in Spanish. Wherever this page points you at a button, the
 > label you will actually see on screen is quoted after it — settings is
@@ -83,7 +86,7 @@ everything; move it and everything comes along.
 This program is not signed with an Apple developer account, so macOS blocks it
 the first time. **It is not broken** — every small downloaded tool gets this.
 
-1. Double-click `newsphotostalker.command`. A warning appears: click **Cancel**
+1. Double-click `newsphotostalker.app`. A warning appears: click **Cancel**
    (not *Move to Trash*).
 2. Open **System Settings → Privacy & Security**, scroll to the bottom and click
    **Open Anyway** next to the program's name.
@@ -142,10 +145,13 @@ is between you and the agency.
 Reuters Connect requires a session and sits behind an anti-bot wall, so you sign
 in **by hand, once**, from settings → sign in to Reuters
 (`ajustes → iniciar sesión en Reuters`). A browser window opens, you sign in
-there, and the session is kept.
+there, and when you close the window the session is checked and saved
+automatically.
 
 **That is the only window you will ever see.** From then on searches run
-headless. Your Reuters password is never written to any file.
+headless. The program **never types your Reuters password** — signing in is
+always you — and it keeps the session alive on its own; when Reuters eventually
+expires it, the panel tells you and you simply sign in again.
 
 It uses a browser you already have — Chrome, Edge, Brave or Chromium. On macOS
 and Linux one is bundled, in case you have none.
