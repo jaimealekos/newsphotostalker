@@ -20,10 +20,11 @@ db_url: sqlite:///./data/app.db
 # (todas a la vez) y se configura desde el panel → ajustes.
 default_cadence_minutes: 360
 
-# Refresco periódico de la sesión de Reuters para que no caduque (mantiene viva
-# la cookie datadome y el token). 0 = desactivado (recomendado si arrancas la app
-# a demanda). En un servidor 24/7 puedes ponerlo a p. ej. 180 (cada 3 h).
-reuters_keepalive_minutes: 0
+# Refresco periódico de la sesión de Reuters para que no caduque. Cada ciclo hace
+# una búsqueda real: eso renueva el token (no solo la cookie de datadome) y es lo
+# que hace que la sesión dure y no haya que re-loguear a mano tan seguido. Debe ir
+# por debajo de la vida del token (~24 h), así que 60 min sobra. 0 = desactivado.
+reuters_keepalive_minutes: 60
 
 agencies:
   ap:
@@ -33,9 +34,12 @@ agencies:
 
   reuters:
     enabled: true
-    # Reuters Connect (email / contraseña). Necesario en modo live.
-    username: tu-email@ejemplo.com
-    password: tu-contraseña-de-reuters
+    # Reuters se usa con TU sesión, que inicias a mano una vez desde
+    # «ajustes → iniciar sesión en Reuters». El programa NUNCA teclea tu
+    # contraseña (automatizar el login hace que Reuters bloquee la cuenta),
+    # así que no hace falta escribirla aquí. username es solo informativo.
+    username: null
+    password: null
 
   getty:                # Getty y AFP se sirven ambos por aquí
     enabled: true

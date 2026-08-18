@@ -126,10 +126,11 @@ class Settings:
     data_dir: Path = field(default_factory=lambda: BASE_DIR / "data")
     db_url: str = "sqlite:///./data/app.db"
     default_cadence_minutes: int = 360
-    # Refresco periódico de la sesión de Reuters para que no caduque (mantiene
-    # viva la cookie datadome + el token auth0, evitando re-login humano).
-    # 0 = desactivado. Ver app/ingest/keepalive.py.
-    reuters_keepalive_minutes: int = 0
+    # Refresco periódico de la sesión de Reuters para que no caduque. Cada ciclo
+    # hace una búsqueda real, que es lo que renueva el token de auth0 (no solo la
+    # cookie de datadome). Debe ir por DEBAJO de la vida del token (~24 h), así
+    # que 60 min sobra; 0 = desactivado. Ver app/ingest/keepalive.py.
+    reuters_keepalive_minutes: int = 60
     agencies: dict[str, AgencyCredentials] = field(default_factory=dict)
     playwright: PlaywrightConfig = field(default_factory=PlaywrightConfig)
     alerts: AlertsConfig = field(default_factory=AlertsConfig)
@@ -182,9 +183,9 @@ agencies:
   # AP y Getty (y AFP, que se distribuye por Getty) no piden credenciales.
   ap:      {enabled: true}
   getty:   {enabled: true}
-  # Reuters SÍ necesita tu cuenta. No hace falta escribirla aquí: entra desde
+  # Reuters SÍ necesita tu cuenta, pero NO se escribe aquí: entra desde
   # «ajustes → iniciar sesión en Reuters», que abre una ventana del navegador y
-  # deja la sesión guardada. Rellena esto solo si prefieres el login automático.
+  # deja la sesión guardada. El programa nunca teclea tu contraseña.
   reuters: {enabled: true, username: null, password: null}
 
 playwright:
@@ -284,7 +285,7 @@ def get_settings() -> Settings:
         data_dir=data_dir,
         db_url=raw.get("db_url", "sqlite:///./data/app.db"),
         default_cadence_minutes=int(raw.get("default_cadence_minutes", 360)),
-        reuters_keepalive_minutes=int(raw.get("reuters_keepalive_minutes", 0)),
+        reuters_keepalive_minutes=int(raw.get("reuters_keepalive_minutes", 60)),
         agencies=agencies,
         playwright=playwright,
         alerts=alerts,

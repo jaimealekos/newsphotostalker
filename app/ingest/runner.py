@@ -239,6 +239,15 @@ def _run_search_locked(search_id: int, limit: int, since, page_cap) -> RunResult
     except Exception:  # noqa: BLE001
         pass
 
+    # Una búsqueda real de Reuters que va bien ES el trabajo del keep-alive:
+    # cuenta como su señal, y el próximo tick se ahorra lanzar un navegador.
+    try:
+        from .keepalive import sesion_ejercitada
+
+        sesion_ejercitada(settings, agency, result.status != "error")
+    except Exception:  # noqa: BLE001
+        pass
+
     result.message = _summarise(result)
     return result
 

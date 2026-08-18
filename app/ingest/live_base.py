@@ -10,8 +10,10 @@ Key facts verified against the live service (2026-07):
     display (Xvfb) with a normal fingerprint passes. On a server, launch the
     app under ``xvfb-run`` (see README) or set ``playwright.headless: false``
     with a real/virtual display.
-  * The login is two-step: type email -> Continue -> type password -> Sign in
-    (the password step is served by auth.thomsonreuters.com).
+  * The login is never automated: a human signs in once, with a normal browser
+    (scripts/login_reuters.py). Typing the password against
+    auth.thomsonreuters.com makes Reuters count failed sign-ins and block the
+    account by IP (it happened, 2026-08). See reuters.py.
   * A persistent user-data-dir keeps the session, so login happens rarely.
 """
 
@@ -105,6 +107,19 @@ _BROWSERS: dict[str, tuple[tuple[str, str], ...]] = {
         ("Microsoft Edge", "/usr/bin/microsoft-edge"),
     ),
 }
+
+
+def perfil_del_navegador(settings, agency: str = "reuters") -> Path:
+    """Ruta del perfil persistente de una agencia, SIN crearla.
+
+    Única fuente de verdad de esta resolución: la usaban cuatro sitios con
+    copias que ya habían divergido (main.py ignoraba ``user_data_dir`` y el
+    panel decía «falta» con un perfil configurado en ruta absoluta).
+    """
+    base = Path(settings.playwright.user_data_dir)
+    if not base.is_absolute():
+        base = (Path(settings.data_dir) / "browser").resolve()
+    return base / agency
 
 
 def system_browser() -> tuple[str, str] | None:
@@ -246,10 +261,7 @@ class LiveAdapter(BaseAdapter):
         from playwright.sync_api import sync_playwright
 
         pw_conf = self.settings.playwright
-        user_data = Path(pw_conf.user_data_dir)
-        if not user_data.is_absolute():
-            user_data = (self.settings.data_dir / "browser").resolve()
-        profile_dir = user_data / self.agency
+        profile_dir = perfil_del_navegador(self.settings, self.agency)
         profile_dir.mkdir(parents=True, exist_ok=True)
 
         # Huella: NADA de user-agent falso ni parches JS "stealth". DataDome

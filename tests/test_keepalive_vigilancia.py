@@ -18,10 +18,15 @@ from app.ingest import keepalive
 
 @pytest.fixture()
 def settings(tmp_path):
-    """Config mínima: keep-alive cada 180 min y avisos por webhook activos."""
+    """Config mínima: keep-alive cada 180 min, avisos por webhook activos y una
+    sesión de Reuters guardada (sin ella, el vigilante no vigila a propósito)."""
+    perfil = tmp_path / "browser" / "reuters"
+    perfil.mkdir(parents=True)
+    (perfil / "Local State").write_text("{}")
     return SimpleNamespace(
         data_dir=tmp_path,
         reuters_keepalive_minutes=180,
+        playwright=SimpleNamespace(user_data_dir=str(tmp_path / "browser")),
         alerts=SimpleNamespace(
             enabled=True,
             webhook_url="http://webhook.invalido/x",
@@ -103,6 +108,20 @@ def test_con_el_keepalive_desactivado_no_vigila_nada(settings, enviados):
     """Si está apagado a propósito, su silencio es lo correcto."""
     settings.reuters_keepalive_minutes = 0
     _envejece(settings, horas=99)
+    assert keepalive.revisa_atraso(settings) is False
+    assert enviados == []
+
+
+def test_sin_sesion_guardada_no_vigila_nada(settings, enviados, tmp_path):
+    """Una instalación sin login de Reuters no debe recibir la alarma.
+
+    Con el keep-alive encendido por defecto, el vigilante saltaba a las dos
+    horas de instalar —«el keep-alive no se está ejecutando… la sesión
+    caducará»— para alguien que no tiene sesión alguna que perder. Si no hay
+    sesión que mantener, el silencio del keep-alive es lo correcto.
+    """
+    settings.playwright = SimpleNamespace(user_data_dir=str(tmp_path / "no-existe"))
+    settings.data_dir = tmp_path / "no-existe"
     assert keepalive.revisa_atraso(settings) is False
     assert enviados == []
 

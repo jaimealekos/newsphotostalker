@@ -1,13 +1,16 @@
 """Reuters Connect adapter (browser-driven).
 
-VERIFIED AGAINST THE LIVE SERVICE (2026-07) with the account credentials.
+VERIFIED AGAINST THE LIVE SERVICE (2026-07) with a manually established session.
 Reuters Connect requires a real login and is protected by a DataDome bot-wall,
 so this adapter drives a headed, logged-in Chromium profile (see
 :mod:`.live_base`). The verified contract:
 
-* Login (two-step): open /login, type the email, click Continue, type the
-  password on auth.thomsonreuters.com, click Sign in. The persistent profile
-  keeps the session so this only happens occasionally.
+* Login: NO se automatiza, a propósito. El perfil persistente guarda la sesión,
+  que un humano establece a mano una vez (scripts/login_reuters.py abre un
+  navegador normal para pasar DataDome). Automatizar el login —teclear la
+  contraseña contra auth.thomsonreuters.com— hace que Reuters contabilice
+  intentos fallidos y bloquee la cuenta por IP (pasó en 08-2026). Si no hay
+  sesión viva, login() falla limpiamente y pide el login manual.
 * Search URL: https://www.reutersconnect.com/all?search=all%3A<query>
   (the "all:" prefix searches everything; a photographer's name matches their
   credited images). ``media-types=picture`` restricts to stills.
@@ -66,66 +69,54 @@ class ReutersAdapter(LiveAdapter):
         page = self.page
         page.goto("https://www.reutersconnect.com/all", wait_until="domcontentloaded")
         page.wait_for_timeout(4000)
-        # Already signed in from the persisted profile?
+        # ¿Ya hay sesión en el perfil persistente? Es el caso normal.
         if self._looks_logged_in():
             return
 
-        # Sin sesión guardada y sin credenciales no hay nada que intentar. Es el
-        # caso normal de una instalación recién descargada: se entra a mano una
-        # vez y la sesión queda en el perfil.
-        if not self.credentials.has_login:
-            raise LiveAdapterError(
-                "no hay sesión de Reuters guardada. Entra una vez desde "
-                "«ajustes → iniciar sesión en Reuters»: se abre una ventana del "
-                "navegador y la sesión queda guardada para las siguientes veces."
-            )
-
-        page.goto("https://www.reutersconnect.com/login", wait_until="domcontentloaded")
-        page.wait_for_timeout(4000)
-        self._dismiss_cookies()
-        try:
-            page.fill("input[type='email'], input[name='email'], input[type='text']", self.credentials.username)
-            page.click("button[type='submit']")
-            page.wait_for_timeout(6000)
-            page.fill("input[type='password']", self.credentials.password)
-            page.click("button[type='submit']")
-        except Exception as exc:  # noqa: BLE001
-            raise LiveAdapterError(f"Reuters login failed: {exc}") from exc
-
-        # Tras enviar la contraseña, Reuters encadena varias redirecciones hasta
-        # /all. Se espera a aterrizar en el dominio, pero SIN exigir el evento
-        # 'load': /all es una SPA pesada que puede tardar minutos en dispararlo
-        # (o no hacerlo nunca) aunque la sesión ya esté abierta. Quien decide si
-        # el login ha ido bien es _looks_logged_in(), no el cronómetro.
-        try:
-            page.wait_for_url(
-                "**/reutersconnect.com/**",
-                wait_until="domcontentloaded",
-                timeout=self.settings.playwright.timeout_ms,
-            )
-        except Exception:  # noqa: BLE001
-            pass
-        page.wait_for_timeout(4000)
-        if not self._looks_logged_in():
-            raise LiveAdapterError(
-                "el login de Reuters no se completó (bot-wall o credenciales). "
-                "Haz el login a mano una vez con login_reuters.bat "
-                "(python -m scripts.login_reuters): abre la ventana del navegador "
-                "y la sesión queda guardada en el perfil."
-            )
+        # A partir de aquí NO se automatiza el login, nunca. Reuters contabiliza
+        # cada intento fallido de inicio de sesión y bloquea la cuenta por IP:
+        # pasó en 08-2026 cuando el re-login automático —teclear email+contraseña
+        # contra el muro DataDome— se repitió al caducar la sesión. La sesión se
+        # establece SOLO a mano, una vez, desde «ajustes → iniciar sesión en
+        # Reuters» (login_reuters.bat / python -m scripts.login_reuters), que abre
+        # un navegador normal y deja que un humano resuelva el acceso. Sin sesión
+        # viva, la búsqueda falla limpiamente y se pide el login manual.
+        raise LiveAdapterError(
+            "no hay sesión de Reuters viva. Entra a mano una vez desde "
+            "«ajustes → iniciar sesión en Reuters» (login_reuters.bat / "
+            "python -m scripts.login_reuters): se abre una ventana del navegador, "
+            "resuelves el acceso y la sesión queda guardada en el perfil. El login "
+            "no se automatiza: Reuters bloquea la cuenta si se intenta."
+        )
 
     def _looks_logged_in(self) -> bool:
         return "/login" not in self.page.url and "auth.thomsonreuters.com" not in self.page.url
 
-    def _dismiss_cookies(self) -> None:
-        for sel in ["#onetrust-accept-btn-handler", "button:has-text('Accept')"]:
-            el = self.page.query_selector(sel)
-            if el:
-                try:
-                    el.click()
-                    return
-                except Exception:
-                    pass
+    def _datadome_challenge(self) -> bool:
+        """True si la página actual es el interstitial/CAPTCHA de DataDome.
+
+        Ese muro carga siempre el script de captcha-delivery.com, que la app ya
+        logueada nunca sirve.
+        """
+        try:
+            return "captcha-delivery.com" in (self.page.content() or "").lower()
+        except Exception:  # noqa: BLE001
+            return False
+
+    def estado_sesion(self) -> str:
+        """Clasifica la página actual: "viva", "challenge" o "caida".
+
+        El orden importa, y es el quid: DataDome sirve su interstitial EN LA
+        MISMA URL (verificado en vivo: un 401 con el challenge deja page.url
+        intacta), así que mirar solo la URL —_looks_logged_in— toma un muro
+        transitorio por una sesión sana. Por eso el challenge se comprueba
+        PRIMERO, por contenido; solo después decide la URL.
+        """
+        if self._datadome_challenge():
+            return "challenge"
+        if not self._looks_logged_in():
+            return "caida"
+        return "viva"
 
     def search(self, *, kind, query, since, limit=100):
         url = SEARCH_URL.format(q=quote(query))
