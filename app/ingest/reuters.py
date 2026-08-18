@@ -93,29 +93,37 @@ class ReutersAdapter(LiveAdapter):
         return "/login" not in self.page.url and "auth.thomsonreuters.com" not in self.page.url
 
     def _datadome_challenge(self) -> bool:
-        """True si la página actual es el interstitial/CAPTCHA de DataDome.
+        """True si la página actual lleva el CAPTCHA de DataDome.
 
-        Ese muro carga siempre el script de captcha-delivery.com, que la app ya
-        logueada nunca sirve.
+        El marcador es el iframe del captcha (geo.captcha-delivery.com), que
+        una página normal no incrusta jamás. No vale buscar «captcha-delivery»
+        a secas: el tag de vigilancia de DataDome puede venir del mismo dominio
+        en páginas perfectamente sanas, y daría challenge donde no lo hay.
         """
         try:
-            return "captcha-delivery.com" in (self.page.content() or "").lower()
+            return "geo.captcha-delivery.com" in (self.page.content() or "").lower()
         except Exception:  # noqa: BLE001
             return False
 
     def estado_sesion(self) -> str:
         """Clasifica la página actual: "viva", "challenge" o "caida".
 
-        El orden importa, y es el quid: DataDome sirve su interstitial EN LA
-        MISMA URL (verificado en vivo: un 401 con el challenge deja page.url
-        intacta), así que mirar solo la URL —_looks_logged_in— toma un muro
-        transitorio por una sesión sana. Por eso el challenge se comprueba
-        PRIMERO, por contenido; solo después decide la URL.
+        El orden lo dictaron dos sorpresas comprobadas en vivo:
+
+        * Estar en el login MANDA. La propia página de login puede venir con el
+          captcha de DataDome encima (visto en 08-2026: /login con el iframe de
+          geo.captcha-delivery), y eso no la convierte en un muro transitorio:
+          si Reuters te ha mandado al login, la sesión no está, y hay que
+          decirlo — «challenge» aquí taparía la única avería que exige humano.
+        * Con URL de logueado, el contenido decide. DataDome sirve su
+          interstitial EN LA MISMA URL (un 401 deja page.url intacta), así que
+          fiarse de la URL tomaría el muro por una sesión sana y anotaría
+          éxitos falsos.
         """
-        if self._datadome_challenge():
-            return "challenge"
         if not self._looks_logged_in():
             return "caida"
+        if self._datadome_challenge():
+            return "challenge"
         return "viva"
 
     def search(self, *, kind, query, since, limit=100):

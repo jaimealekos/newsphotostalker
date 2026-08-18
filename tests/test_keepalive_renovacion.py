@@ -53,11 +53,12 @@ class FakeAdapter:
         return self._challenge
 
     def estado_sesion(self):
-        # Réplica del clasificador real: el challenge manda sobre la URL.
-        if self._challenge:
-            return "challenge"
+        # Réplica del clasificador real (hay tests del de verdad más abajo):
+        # el login manda; con URL de logueado, el contenido decide.
         if not self._logged_in:
             return "caida"
+        if self._challenge:
+            return "challenge"
         return "viva"
 
     def search(self, **kw):
@@ -113,15 +114,18 @@ def test_challenge_no_es_exito_aunque_la_url_enganie(monkeypatch):
     assert fake.closed
 
 
-def test_challenge_de_datadome_no_es_sesion_caida(monkeypatch):
-    """Un muro transitorio no debe disparar el aviso de re-login."""
+def test_en_el_login_el_muro_no_disfraza_la_caida(monkeypatch):
+    """La página de login puede venir con el captcha de DataDome ENCIMA
+    (visto en vivo, 08-2026). Eso no la vuelve un muro transitorio: si Reuters
+    te mandó al login, la sesión no está, y hay que avisar — «challenge» aquí
+    taparía la única avería que exige un humano."""
     fake = FakeAdapter(logged_in=False, challenge=True)
     runs, senales = _engancha(monkeypatch, fake)
 
     keepalive._keepalive_locked(SimpleNamespace(), SimpleNamespace())
 
-    assert runs == []
-    assert senales == ["challenge de DataDome"]
+    assert [r[:2] for r in runs] == [("reuters", False)]
+    assert senales == ["sesión caída"]
     assert fake.closed
 
 
@@ -167,6 +171,64 @@ def test_sesion_muerta_de_verdad_avisa(monkeypatch):
     assert senales == ["sesión caída"]          # corrió, y encontró lo que encontró
     assert fake.searched is None
     assert fake.closed
+
+
+# --- el clasificador REAL, con páginas simuladas ----------------------------
+#
+# La réplica del FakeAdapter ya divergió una vez del clasificador de verdad y
+# el fallo pasó de largo. Estos tests clavan el contrato del real.
+
+INTERSTITIAL = (
+    '<html><body><p id="cmsg">Please enable JS</p>'
+    '<iframe src="https://geo.captcha-delivery.com/captcha/?x=1"></iframe>'
+    "</body></html>"
+)
+LOGIN_CON_CAPTCHA = (
+    "<html><body>Login | Reuters Connect"
+    '<iframe src="https://geo.captcha-delivery.com/captcha/?y=2"></iframe>'
+    "</body></html>"
+)
+# Página sana que solo lleva el TAG de vigilancia de DataDome (sin iframe).
+PAGINA_SANA = (
+    '<html><body>fotos<script src="https://ct.captcha-delivery.com/c.js">'
+    "</script></body></html>"
+)
+
+
+def _adapter_real(url: str, html: str):
+    from app.ingest.reuters import ReutersAdapter
+
+    class _PaginaFalsa:
+        def __init__(self, url, html):
+            self.url = url
+            self._html = html
+
+        def content(self):
+            return self._html
+
+    ad = ReutersAdapter.__new__(ReutersAdapter)  # sin abrir navegador
+    ad._page = _PaginaFalsa(url, html)
+    return ad
+
+
+def test_clasificador_real_challenge_en_url_de_logueado():
+    """DataDome sirve el muro EN LA MISMA URL: la URL miente, el contenido no."""
+    ad = _adapter_real("https://www.reutersconnect.com/all", INTERSTITIAL)
+    assert ad.estado_sesion() == "challenge"
+
+
+def test_clasificador_real_el_login_manda_aunque_haya_captcha():
+    """El caso visto en vivo: /login con el captcha encima = sesión caída."""
+    ad = _adapter_real(
+        "https://www.reutersconnect.com/login?url64=x", LOGIN_CON_CAPTCHA
+    )
+    assert ad.estado_sesion() == "caida"
+
+
+def test_clasificador_real_viva_aunque_lleve_el_tag_de_datadome():
+    """El tag de vigilancia (sin iframe de captcha) no es un challenge."""
+    ad = _adapter_real("https://www.reutersconnect.com/all", PAGINA_SANA)
+    assert ad.estado_sesion() == "viva"
 
 
 def test_sin_perfil_no_hay_sesion_guardada(tmp_path):
