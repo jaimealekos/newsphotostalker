@@ -54,7 +54,16 @@ ESPERA_REINTENTO_S = 15
 #: Fallos que NO se reintentan, porque reintentarlos no puede arreglarlos y sí
 #: hacer daño: sin credenciales seguirá sin haberlas, y ante un bot-wall que
 #: exige un humano, insistir solo empeora la reputación del navegador.
-NO_REINTENTABLES = ("no se completó", "needs credentials", "necesita credenciales")
+#: Es la red de seguridad por TEXTO; la vía principal es que la propia
+#: excepción diga si un reintento sirve (``reintentable``, ver live_base):
+#: casar cadenas resultó frágil —cambiar una palabra del mensaje reactivó un
+#: reintento dañino sin que ningún test lo viera—.
+NO_REINTENTABLES = (
+    "no se completó",
+    "needs credentials",
+    "necesita credenciales",
+    "no hay sesión",
+)
 
 # Centinela: "usa el cursor de novedades de la búsqueda" (por defecto). El
 # backfill pasa un `since` explícito (la fecha límite de retención, o None).
@@ -143,10 +152,13 @@ def _merece_reintento(exc: Exception) -> bool:
     """¿Este fallo puede arreglarse volviendo a intentarlo dentro de un rato?
 
     Casi todos sí: son tiempos de espera agotados y páginas que no llegaron a
-    pintar. Los que no, están en :data:`NO_REINTENTABLES` y se reconocen por el
-    texto porque es lo único que distingue a unos de otros: todos llegan aquí
-    como ``LiveAdapterError``.
+    pintar. Primero se le pregunta a la propia excepción (``reintentable``,
+    p. ej. :class:`~.live_base.SinSesionError` dice que no); el cotejo por
+    texto de :data:`NO_REINTENTABLES` queda como red para los errores que no
+    llevan esa marca.
     """
+    if getattr(exc, "reintentable", True) is False:
+        return False
     texto = str(exc).lower()
     return not any(marca.lower() in texto for marca in NO_REINTENTABLES)
 

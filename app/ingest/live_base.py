@@ -236,7 +236,20 @@ def _perfil_ocupado(exc: Exception) -> bool:
 
 
 class LiveAdapterError(RuntimeError):
-    pass
+    #: ¿Puede un reintento arreglar este fallo? El filtro de reintentos del
+    #: runner pregunta a la excepción antes que a su texto: casar cadenas es
+    #: frágil (cambiar una palabra del mensaje reactivó un reintento dañino).
+    reintentable = True
+
+
+class SinSesionError(LiveAdapterError):
+    """No hay sesión de Reuters viva: hace falta que un humano entre a mano.
+
+    Reintentar no puede arreglarlo —la sesión no va a aparecer sola— y sí hacer
+    daño: cada golpe extra contra el muro empeora la reputación del navegador.
+    """
+
+    reintentable = False
 
 
 class LiveAdapter(BaseAdapter):
@@ -305,12 +318,27 @@ class LiveAdapter(BaseAdapter):
             launch["executable_path"] = executable
 
         self._pw = sync_playwright().start()
-        self._context = self._lanzar(launch, profile_dir, executable)
-        self._context.set_default_timeout(pw_conf.timeout_ms)
-        self._page = self._context.new_page()
+        try:
+            self._context = self._lanzar(launch, profile_dir, executable)
+            self._context.set_default_timeout(pw_conf.timeout_ms)
+            self._page = self._context.new_page()
 
-        if self.requires_login:
-            self._ensure_login()
+            if self.requires_login:
+                self._ensure_login()
+        except BaseException:
+            # Si open() fracasa a medias (el navegador no arranca, el login
+            # lanza), hay que recoger lo ya arrancado AQUÍ: quien nos llamó
+            # nunca tendrá el adaptador, así que nadie más puede cerrarlo. La
+            # fuga no era teórica: el sync de Playwright deja su bucle de
+            # asyncio CORRIENDO en el hilo (greenlets), y el reintento de la
+            # ingesta —mismo hilo— moría con «Sync API inside the asyncio
+            # loop», tapando el error de verdad con uno indescifrable. Además
+            # quedaban vivos el driver y el navegador.
+            try:
+                self.close()
+            except Exception:  # noqa: BLE001 - no puede tapar el error original
+                pass
+            raise
 
     def _lanzar(self, launch: dict, profile_dir: Path, executable: str | None):
         """Abre el contexto persistente, reintentando ante una carrera de perfil.

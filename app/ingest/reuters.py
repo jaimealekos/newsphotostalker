@@ -47,7 +47,7 @@ from urllib.parse import quote
 from dateutil import parser as dateparser
 
 from .base import RawAsset
-from .live_base import LiveAdapter, LiveAdapterError
+from .live_base import LiveAdapter, LiveAdapterError, SinSesionError
 
 SEARCH_URL = "https://www.reutersconnect.com/all?search=all%3A{q}&media-types=picture&sort=newest"
 
@@ -81,7 +81,7 @@ class ReutersAdapter(LiveAdapter):
         # Reuters» (login_reuters.bat / python -m scripts.login_reuters), que abre
         # un navegador normal y deja que un humano resuelva el acceso. Sin sesión
         # viva, la búsqueda falla limpiamente y se pide el login manual.
-        raise LiveAdapterError(
+        raise SinSesionError(
             "no hay sesión de Reuters viva. Entra a mano una vez desde "
             "«ajustes → iniciar sesión en Reuters» (login_reuters.bat / "
             "python -m scripts.login_reuters): se abre una ventana del navegador, "

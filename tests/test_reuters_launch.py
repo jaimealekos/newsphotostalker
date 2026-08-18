@@ -82,3 +82,76 @@ def test_clasificador_de_errores():
     assert _perfil_ocupado(RuntimeError("Failed to create a ProcessSingleton"))
     assert not _perfil_ocupado(RuntimeError("spawn UNKNOWN"))
     assert not _perfil_ocupado(RuntimeError("Executable doesn't exist at ..."))
+
+
+# --- un open() fallido no puede dejar Playwright vivo ------------------------
+#
+# La fuga envenenaba el hilo: el sync de Playwright deja su bucle de asyncio
+# CORRIENDO (greenlets), y el reintento de la ingesta —mismo hilo— moría con
+# «Sync API inside the asyncio loop», tapando el error real. Y quien llamó a
+# open() nunca recibió el adaptador, así que nadie más podía cerrarlo:
+# BaseAdapter.__exit__ solo corre si __enter__ (=open) terminó.
+
+
+def _settings_falsos(tmp_path):
+    return types.SimpleNamespace(
+        data_dir=tmp_path,
+        playwright=types.SimpleNamespace(
+            user_data_dir=str(tmp_path / "browser"),
+            headless=True,
+            timeout_ms=1000,
+            executable_path="chrome.exe",  # que no busque navegadores de verdad
+        ),
+    )
+
+
+def _con_playwright_falso(monkeypatch, chromium):
+    """Sustituye sync_playwright por uno de pega y devuelve su registro."""
+    import playwright.sync_api as psync
+
+    registro = {"stop": 0}
+    pw = types.SimpleNamespace(chromium=chromium, stop=lambda: registro.__setitem__("stop", registro["stop"] + 1))
+    monkeypatch.setattr(psync, "sync_playwright", lambda: types.SimpleNamespace(start=lambda: pw))
+    return registro
+
+
+def test_si_el_navegador_no_arranca_playwright_se_para(monkeypatch, tmp_path):
+    registro = _con_playwright_falso(monkeypatch, _Chromium(fallos=99, error="spawn UNKNOWN"))
+    ad = _Adaptador(_settings_falsos(tmp_path), None)
+    with pytest.raises(LiveAdapterError):
+        ad.open()
+    assert registro["stop"] == 1  # el driver no queda vivo
+    assert ad._pw is None and ad._context is None  # y el adaptador, limpio
+
+
+def test_si_el_login_lanza_se_cierra_todo(monkeypatch, tmp_path):
+    cerrado = {"context": 0}
+
+    class _Contexto:
+        def set_default_timeout(self, *_):
+            pass
+
+        def new_page(self):
+            return "PAGINA"
+
+        def close(self):
+            cerrado["context"] += 1
+
+    class _ChromiumOK:
+        def launch_persistent_context(self, **_):
+            return _Contexto()
+
+    registro = _con_playwright_falso(monkeypatch, _ChromiumOK())
+
+    class _SinSesion(_Adaptador):
+        requires_login = True
+
+        def login(self):
+            raise LiveAdapterError("no hay sesión de Reuters viva…")
+
+    ad = _SinSesion(_settings_falsos(tmp_path), None)
+    with pytest.raises(LiveAdapterError):
+        ad.open()
+    assert cerrado["context"] == 1
+    assert registro["stop"] == 1
+    assert ad._pw is None and ad._context is None
