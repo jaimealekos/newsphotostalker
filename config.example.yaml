@@ -48,12 +48,22 @@ agencies:
 
 # Aviso opcional cuando una agencia deja de funcionar (disparo por flanco: un
 # aviso en el PRIMER fallo tras funcionar; se rearma al recuperarse). webhook_url
-# recibe un POST JSON {subject, message}; puedes apuntarlo a tu propio webhook
-# (p. ej. un flujo que reenvíe por email). Desactivado por defecto.
+# recibe un POST JSON {subject, message}; puedes apuntarlo a tu propio webhook.
+#
+# ¿No tienes webhook? ntfy.sh sirve sin crear cuenta: los avisos llegan a un
+# tema que ves en el navegador o en su app del móvil (notificación push):
+#   webhook_url: "https://ntfy.sh/UN-TEMA-SECRETO?tpl=yes&t={{.subject}}&m={{.message}}"
+# Elige un tema largo e impredecible (hace de contraseña). Para que además te
+# lo reenvíe POR CORREO, ntfy exige una cuenta gratuita: con su token, añade
+# a la URL «&email=tu@correo.com&auth=<token en base64>».
+#
+# postdata: coletilla que se añade al final de TODOS los avisos — instrucciones
+# para quien lo reciba («abre tal cosa», «avisa a tal persona»). Opcional.
 alerts:
   enabled: false
   webhook_url: null
   agencies: [reuters]
+  postdata: null
 
 playwright:
   # Solo Reuters usa navegador (está tras el muro anti-bot DataDome). Con true no

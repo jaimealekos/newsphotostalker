@@ -118,6 +118,9 @@ class AlertsConfig:
     # navegador que caduca; AP/Getty fallan solo por cortes transitorios.
     agencies: list[str] = field(default_factory=lambda: ["reuters"])
     timeout_s: int = 15
+    # Coletilla que se añade al final de TODOS los avisos: instrucciones para
+    # quien lo reciba («abre tal cosa», «avisa a tal persona»). Opcional.
+    postdata: str | None = None
 
 
 @dataclass
@@ -278,6 +281,7 @@ def get_settings() -> Settings:
         webhook_url=al_conf.get("webhook_url"),
         agencies=list(al_conf.get("agencies") or ["reuters"]),
         timeout_s=int(al_conf.get("timeout_s", 15)),
+        postdata=al_conf.get("postdata"),
     )
 
     settings = Settings(

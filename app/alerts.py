@@ -98,6 +98,11 @@ def _send(cfg, agency: str, error: str) -> bool:
 
 def _post(cfg, subject: str, message: str) -> bool:
     """Entrega un aviso por el webhook. True si el destinatario lo aceptó."""
+    # La coletilla configurada (alerts.postdata) viaja al final de todo aviso:
+    # es donde el dueño escribe qué hacer al recibirlo. Se añade aquí, en el
+    # único punto de salida, para que ningún aviso pueda olvidarse de ella.
+    if getattr(cfg, "postdata", None):
+        message = f"{message}\n\n{cfg.postdata}"
     body = json.dumps({"subject": subject, "message": message}).encode()
     req = urllib.request.Request(
         cfg.webhook_url,

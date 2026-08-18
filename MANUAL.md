@@ -273,6 +273,22 @@ Opcional. Si defines `alerts.webhook_url`, se hace un POST JSON `{subject, messa
 la **primera** vez que una agencia falla tras funcionar (disparo por flanco; se
 rearma al recuperarse). Puedes apuntarlo a cualquier flujo que reenvíe por email.
 
+¿No tienes ningún webhook a mano? [ntfy.sh](https://ntfy.sh) funciona sin crear
+cuenta: los avisos llegan a un tema que ves en el navegador o, como
+notificación, en su app del móvil:
+
+```yaml
+alerts:
+  enabled: true
+  webhook_url: "https://ntfy.sh/UN-TEMA-SECRETO?tpl=yes&t={{.subject}}&m={{.message}}"
+```
+
+Elige un tema largo e impredecible (hace de contraseña). Para que además te lo
+reenvíe **por correo**, ntfy pide una cuenta gratuita: con su token, añade a la
+URL `&email=tu@correo.com&auth=<token en base64>`. Y `alerts.postdata`, si lo
+defines, se añade al final de todos los avisos: instrucciones para quien lo
+reciba.
+
 ## Arquitectura
 
 ```
