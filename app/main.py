@@ -486,10 +486,10 @@ def settings_page(
             "has_login": c.has_login if c else False,
             "username": (c.username if c else None),
         }
+    from .ingest.keepalive import hay_sesion_guardada
     from .ingest.live_base import browser_summary
     from .ingest.reuters_login import STATUS as reuters_login_status
 
-    perfil = settings.data_dir / "browser" / "reuters"
     return templates.TemplateResponse(
         "settings.html",
         _ctx(
@@ -498,8 +498,11 @@ def settings_page(
             gstats=services.global_stats(db, user.id),
             app_settings=services.get_app_settings(db),
             # Solo dice si hay perfil de navegador guardado, no si la sesión
-            # sigue siendo válida: eso únicamente se sabe ejecutando.
-            reuters_profile=perfil.exists(),
+            # sigue siendo válida: eso únicamente se sabe ejecutando. Mismo
+            # predicado que usa el keep-alive: antes se derivaba aquí la ruta a
+            # mano (ignorando user_data_dir) y el panel podía decir «falta» con
+            # una sesión perfectamente configurada en otra carpeta.
+            reuters_profile=hay_sesion_guardada(settings),
             reuters_login=reuters_login_status,
             # Qué navegador conducirá Reuters ("" si no hay ninguno usable).
             browser_name=browser_summary(),

@@ -65,7 +65,9 @@
       <tr>
         <td><span class="agency agency-reuters">REUTERS</span></td>
         <td>{{ "sí" if creds.reuters.enabled else "no" }}</td>
-        <td>{{ "configurado ✓" if creds.reuters.has_login else "falta" }}</td>
+        {# Lo que cuenta es la SESIÓN del navegador, no que haya contraseña en la
+           config: el programa nunca la teclea (el login es manual, abajo). #}
+        <td>{{ "sesión guardada ✓" if reuters_profile else "falta — se inicia abajo" }}</td>
         <td class="mono">{{ creds.reuters.username or "—" }}</td>
       </tr>
       <tr>
@@ -82,9 +84,9 @@
   <p class="muted small">
     Reuters es la única agencia que necesita tu cuenta. Entras <strong>a mano una vez</strong>:
     se abre tu navegador normal en el login de Reuters, inicias sesión ahí (resuelve el CAPTCHA
-    si aparece) y <strong>cierras la ventana</strong>. La sesión queda guardada; no hace falta
-    escribir tu contraseña en ningún fichero, y a partir de ahí las búsquedas corren sin abrir
-    ninguna ventana. Si algún día caduca, vuelve a pulsar el botón.
+    si aparece) y <strong>cierras la ventana</strong>: al cerrarla, la sesión se comprueba y se
+    guarda sola. No hace falta escribir tu contraseña en ningún fichero, y a partir de ahí las
+    búsquedas corren sin abrir ninguna ventana. Si algún día caduca, vuelve a pulsar el botón.
   </p>
   <p class="muted small">
     Se usa tu navegador tal cual, sin automatizar, a propósito: el muro anti-bot de Reuters
@@ -101,7 +103,8 @@
     {% endif %}
   </p>
   {% if reuters_login.awaiting %}
-  {# Paso 2: el navegador está abierto; el usuario entra y confirma aquí. #}
+  {# Paso 2: el navegador está abierto. Al CERRARLO se comprueba solo; el botón es de respaldo. #}
+  <p class="muted small">Entra y <strong>cierra la ventana</strong>: la sesión se comprobará sola. ¿No se cierra del todo? Pulsa aquí.</p>
   <form method="post" action="/reuters/login/check" class="inline">
     <button class="btn btn-primary">✓ he entrado, comprobar</button>
   </form>
@@ -113,6 +116,19 @@
       {{ "comprobando…" if reuters_login.busy else "iniciar sesión en Reuters" }}
     </button>
   </form>
+  {% endif %}
+  {% if reuters_login.busy or (reuters_login.awaiting and reuters_login.vigente) %}
+  {# Login en marcha: la página se refresca sola para enseñar el resultado sin
+     recargar a mano. Con cuidado: ni en pestaña oculta, ni pisando lo que el
+     usuario esté tecleando en los demás formularios de esta misma página; y si
+     el intento quedó abandonado (vigente=False), se deja de recargar. #}
+  <script>
+    setInterval(function () {
+      var el = document.activeElement;
+      var escribiendo = el && el.matches && el.matches("input, select, textarea");
+      if (!document.hidden && !escribiendo) location.reload();
+    }, 4000);
+  </script>
   {% endif %}
 
   <h2 class="section-title" style="margin-top:22px">Traer la sesión de otro equipo</h2>

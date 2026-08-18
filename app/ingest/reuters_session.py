@@ -84,6 +84,12 @@ def import_state(estado: dict[str, Any]) -> str:
                 "la sesión importada no vale (probablemente ha caducado); "
                 "vuelve a exportarla en el equipo donde funciona"
             )
+
+    # Una sesión importada también es una sesión recién nacida: fecha para poder
+    # decir cuántos días aguantó cuando muera.
+    from .keepalive import marca_login_humano
+
+    marca_login_humano(get_settings(), via="sesión importada")
     return f"sesión importada ({len(cookies)} cookies): Reuters ya no pedirá login aquí"
 
 
