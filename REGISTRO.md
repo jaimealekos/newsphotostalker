@@ -8,6 +8,17 @@
 
 ---
 
+## Sin publicar
+
+### El NAS ya corre la 1.2.2, y la medición en vivo cierra dos preguntas (28-08)
+
+Desplegada a las 22:45 (git pull + reinicio del contenedor; arranque limpio).
+Y el historial del NAS cerró la investigación: la tormenta del 27-08 fue un
+corte transitorio de Reuters de ~4 horas («no result cards» con la sesión
+viva) que se arregló solo, y el TTL de 24 h queda descartado — la sesión
+lleva 9+ días viva con el keep-alive horario, así que el re-login manual es
+excepcional, no diario.
+
 ## v1.2.2 — 2026-08-28
 
 ### Se acaba la tormenta de avisos, y los avisos dicen qué pasó

@@ -197,7 +197,8 @@ lo que sí hay que volver a bajar es el Chromium
 - La última versión publicada es la **1.2.2** (28-08-2026): el arreglo de la
   tormenta de avisos, revisado, con dos ficheros nuevos de tests y los papeles
   al día. La bitácora nació también hoy. Las 173 pruebas pasan.
-- **Pendiente inmediato**: desplegar la 1.2.2 en el NAS (previsto hoy mismo).
+- La 1.2.2 **corre en el NAS** desde el 28-08 a las 22:45 (git pull + reinicio
+  del contenedor; arranque limpio, planificador y keep-alive programados).
 - **Cerrado hoy con los datos del NAS**: la tormenta del 27-08 fue un corte
   transitorio de Reuters de ~4 horas (15:00–19:00, «no result cards» con la
   sesión viva) que se arregló solo; los tres correos los fabricó el rearme del
