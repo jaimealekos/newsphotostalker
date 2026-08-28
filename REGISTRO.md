@@ -8,9 +8,9 @@
 
 ---
 
-## Sin publicar
+## v1.2.2 — 2026-08-28
 
-### 2026-08-28 — Se acaba la tormenta de avisos, y los avisos dicen qué pasó
+### Se acaba la tormenta de avisos, y los avisos dicen qué pasó
 
 El 27 de agosto llegaron tres correos idénticos en una tarde, todos con el mismo
 texto inútil («no result cards… Timeout 45000ms»). Eran tres averías distintas
@@ -54,13 +54,13 @@ no se filtra por `alerts.agencies`), config.example.yaml lo mismo, y «Problemas
 frecuentes» ya no receta re-login para cualquier error de Reuters. 173 pruebas
 en verde, con dos ficheros nuevos de tests.
 
-### 2026-08-28 — Nace la bitácora del proyecto
+### Nace la bitácora del proyecto
 
 BITACORA.md (el reenganche y las normas de la casa), REGISTRO.md (este fichero)
 y CLAUDE.md (el enganche para las sesiones nuevas de Claude Code). Norma nueva:
 los dos primeros se llevan al día en el mismo cambio que toque el programa.
 
-### 2026-08-19 — Los avisos admiten una postdata
+### Los avisos admiten una postdata (19-08)
 
 `alerts.postdata`: una coletilla que viaja al final de todos los avisos, con
 instrucciones para quien los recibe. Y el manual explica cómo montar los avisos

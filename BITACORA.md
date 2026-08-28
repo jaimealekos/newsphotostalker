@@ -94,10 +94,13 @@ decisiones que parecen raras y no lo son:
    hora hace una búsqueda mínima de verdad, que es lo que renueva el token. Si
    encuentra la sesión caída, avisa a un humano y ya está.
 
-Cuánto dura una sesión no es público y **se está midiendo**: cada aviso lleva
-puesto «la sesión aguantó *N* días». La sospecha actual es un tope duro de ~24 h
-que el keep-alive no puede estirar; con dos o tres ciclos medidos se podrá avisar
-*antes* de que caduque, y no después.
+Cuánto dura una sesión no es público y se mide en vivo: cada aviso lleva puesto
+«la sesión aguantó *N* días». Lo medido hasta hoy (datos del NAS, 28-08-2026):
+la primera sesión tras el desbaneo murió en 1.0 días —de ahí salió la sospecha
+de un tope duro de ~24 h—, pero la siguiente lleva **más de 9 días viva** con el
+keep-alive horario, así que esa sospecha queda **descartada**: bien ejercitada,
+la sesión es de larga vida, y aquella caída temprana fue otra cosa (probablemente
+la resaca del desbaneo). El re-login manual es excepcional, no diario.
 
 También hay dos salidas laterales: **exportar / importar sesión** (para hacer el
 login en un portátil y llevarla a un servidor sin pantalla) y la vía pública de
@@ -191,13 +194,15 @@ lo que sí hay que volver a bajar es el Chromium
 
 ## 9. Estado a 2026-08-28
 
-- La última versión publicada es la **1.2.1** (19-08-2026).
-- **Hay trabajo commiteado y sin publicar**, detallado en [REGISTRO.md](REGISTRO.md):
-  la postdata de los avisos (19-08), la bitácora, y el arreglo completo de la
-  tormenta de avisos del 27-08 — revisado, endurecido y con los papeles al día.
-  Las 173 pruebas pasan.
-- **Lo que queda pendiente**: decidir si esto es la 1.2.2 y publicarla (etiqueta
-  `v1.2.2`; decisión del dueño); desplegar en el NAS (sigue con el código viejo,
-  y es el que dio la tormenta; solo cuando el dueño lo pida); y seguir midiendo
-  cuántos días aguanta la sesión de Reuters — los datos de esa medición viven en
-  el NAS.
+- La última versión publicada es la **1.2.2** (28-08-2026): el arreglo de la
+  tormenta de avisos, revisado, con dos ficheros nuevos de tests y los papeles
+  al día. La bitácora nació también hoy. Las 173 pruebas pasan.
+- **Pendiente inmediato**: desplegar la 1.2.2 en el NAS (previsto hoy mismo).
+- **Cerrado hoy con los datos del NAS**: la tormenta del 27-08 fue un corte
+  transitorio de Reuters de ~4 horas (15:00–19:00, «no result cards» con la
+  sesión viva) que se arregló solo; los tres correos los fabricó el rearme del
+  keep-alive, exactamente lo que la 1.2.2 elimina. Y la sesión lleva 9+ días
+  viva sin re-login: el TTL de 24 h queda descartado (ver la sección 4).
+- **Sigue abierto**: la medición pasiva de la vida de la sesión (cada aviso de
+  caída dirá cuánto aguantó) y, del despliegue, la IP estable y que Chrome no
+  se actualice solo.
