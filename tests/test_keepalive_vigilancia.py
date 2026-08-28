@@ -133,6 +133,27 @@ def test_la_senal_sobrevive_a_la_lectura(settings):
     assert (datetime.now(timezone.utc) - guardada).total_seconds() < 60
 
 
+def test_la_vigilancia_mide_antes_del_lote(monkeypatch):
+    """El orden dentro del refresco global no es un detalle de estilo.
+
+    Cada búsqueda de Reuters que sale bien marca la señal del keep-alive
+    (``sesion_ejercitada``), así que preguntar DESPUÉS del lote era preguntar
+    justo en el instante en que la señal está más fresca: un keep-alive que
+    revienta en cada tick —el navegador que no arranca— no habría hecho saltar
+    nunca la alarma. Medido antes, lo que se mira es la señal del ciclo anterior.
+    """
+    from app import scheduler
+
+    orden: list[str] = []
+    monkeypatch.setattr(scheduler, "run_all_enabled", lambda: orden.append("lote") or [])
+    monkeypatch.setattr(
+        "app.ingest.keepalive.revisa_atraso", lambda: orden.append("vigilancia")
+    )
+
+    scheduler._run_all_job()
+    assert orden == ["vigilancia", "lote"]
+
+
 def test_un_fichero_corrupto_no_revienta_la_vigilancia(settings, enviados):
     keepalive._ruta_senal(settings).write_text("{no es json")
     # Se comporta como si no hubiera referencia: anota y sigue, sin avisar.

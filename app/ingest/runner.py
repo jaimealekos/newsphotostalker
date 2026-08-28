@@ -86,12 +86,17 @@ class RunResult:
     errors: list[str] = field(default_factory=list)
 
 
-def run_search(search_id: int, limit: int = 100, *, since=_USE_CURSOR, page_cap=None) -> RunResult:
+def run_search(
+    search_id: int, limit: int = 100, *, since=_USE_CURSOR, page_cap=None, avisa: bool = True
+) -> RunResult:
     """Run a single search end-to-end. Thread-safe (serialised).
 
     Por defecto usa el cursor de novedades (solo trae lo más nuevo). El backfill
     pasa ``since`` explícito (fecha límite de retención o None) y un ``page_cap``
     alto para bajar hacia atrás y rellenar toda la ventana.
+
+    ``avisa=False`` deja el aviso de la agencia para quien llama: lo usa
+    :func:`run_all_enabled`, que avisa una vez por lote (ver allí el porqué).
 
     Se ejecuta en un hilo recién creado (``en_hilo_sin_bucle``) por lo mismo que
     el login: la API de bloqueo de Playwright se niega a arrancar —«Sync API
@@ -105,7 +110,7 @@ def run_search(search_id: int, limit: int = 100, *, since=_USE_CURSOR, page_cap=
 
     with _RUN_LOCK:
         # Sin timeout: un backfill largo puede tardar minutos y no es un cuelgue.
-        return en_hilo_sin_bucle(_run_search_locked, search_id, limit, since, page_cap)
+        return en_hilo_sin_bucle(_run_search_locked, search_id, limit, since, page_cap, avisa)
 
 
 def backfill_search(search_id: int) -> RunResult:
@@ -163,7 +168,7 @@ def _merece_reintento(exc: Exception) -> bool:
     return not any(marca.lower() in texto for marca in NO_REINTENTABLES)
 
 
-def _run_search_locked(search_id: int, limit: int, since, page_cap) -> RunResult:
+def _run_search_locked(search_id: int, limit: int, since, page_cap, avisa: bool = True) -> RunResult:
     settings = get_settings()
 
     with session_scope() as session:
@@ -244,12 +249,11 @@ def _run_search_locked(search_id: int, limit: int, since, page_cap) -> RunResult
             run.purged_assets = result.purged_assets
             run.message = _summarise(result)
 
-    # Aviso por flanco (solo agencias vigiladas; ver app/alerts.py). Nunca
-    # debe tumbar el run: el aviso es un extra, el run ya está registrado.
-    try:
-        alerts.record_run(settings, agency, result.status != "error", result.message or None)
-    except Exception:  # noqa: BLE001
-        pass
+    # Aviso por flanco (solo agencias vigiladas; ver app/alerts.py). Nunca debe
+    # tumbar el run: el aviso es un extra, el run ya está registrado. En un lote
+    # ni se toca: el veredicto entero lo manda run_all_enabled (avisa=False).
+    if avisa:
+        _avisa_de_un_run(settings, agency, result)
 
     # Una búsqueda real de Reuters que va bien ES el trabajo del keep-alive:
     # cuenta como su señal, y el próximo tick se ahorra lanzar un navegador.
@@ -323,7 +327,87 @@ def _summarise(result: RunResult) -> str:
 
 
 def run_all_enabled(limit: int = 100) -> list[RunResult]:
-    """Run every enabled search once (used by the scheduler and CLI)."""
+    """Run every enabled search once (used by the scheduler and CLI).
+
+    El aviso de la agencia sale UNA vez por lote, no una por búsqueda, y la
+    agencia se da por buena solo si TODAS sus búsquedas fueron bien. Es la otra
+    mitad de la tormenta del 27-08-2026: el disparador por flanco de ``alerts``
+    es por AGENCIA, y ``record_run`` se llamaba por BÚSQUEDA, así que con dos
+    búsquedas de Reuters —una rota de forma persistente y otra sana— cada ciclo
+    avisaba del fallo y acto seguido lo REARMABA con el éxito de la otra: un
+    correo por ciclo de la misma avería continua. Agrupando aquí, el aviso vuelve
+    a ser uno por avería sin tocar las claves del fichero de estado.
+    """
     with session_scope() as session:
-        ids = list(session.scalars(select(Search.id).where(Search.enabled.is_(True))))
-    return [run_search(sid, limit=limit) for sid in ids]
+        busquedas = session.execute(
+            select(Search.id, Search.agency).where(Search.enabled.is_(True))
+        ).all()
+
+    resultados: list[tuple[str, RunResult]] = []
+    for sid, agency in busquedas:
+        try:
+            resultados.append((agency, run_search(sid, limit=limit, avisa=False)))
+        except Exception as exc:  # noqa: BLE001
+            # Un reventón que el runner no atrapa (la BD bloqueada al anotar el
+            # RunLog, un hilo que no arranca) ni para el lote ni desaparece del
+            # veredicto. Sin esta anotación, la agencia se juzgaba solo por las
+            # búsquedas que llegaron a devolver algo: una que reventara así en
+            # todos los ciclos quedaba en silencio eterno, y encima el éxito de
+            # sus hermanas rearmaba el flanco — las dos mitades de lo que este
+            # cambio vino a arreglar.
+            log.exception("la búsqueda %s reventó fuera del runner", sid)
+            resultados.append(
+                (agency, RunResult(sid, "error", message=f"{type(exc).__name__}: {exc}"))
+            )
+    _avisa_del_lote(resultados)
+    return [resultado for _, resultado in resultados]
+
+
+def _avisa_del_lote(resultados: list[tuple[str, RunResult]]) -> None:
+    """Manda a ``alerts`` un veredicto por agencia con lo que dio el lote entero.
+
+    Si una sola de sus búsquedas falló, la agencia falló: rearmar el disparador
+    con el éxito de una búsqueda hermana mientras otra sigue rota es exactamente
+    lo que convertía «un aviso por avería» en «un aviso por ciclo».
+    """
+    settings = get_settings()
+    por_agencia: dict[str, list[RunResult]] = {}
+    for agency, resultado in resultados:
+        por_agencia.setdefault(agency, []).append(resultado)
+
+    for agency, suyos in por_agencia.items():
+        # «search not found» es administración, no avería: la búsqueda se borró
+        # desde el panel con el lote en marcha (la instantánea de ids se toma al
+        # empezar). Con el aviso viejo por búsqueda, ese retorno temprano jamás
+        # avisaba; convertir un borrado en «la agencia ha dejado de funcionar»
+        # sería una regresión. Ni fallo ni éxito: fuera del veredicto.
+        suyos = [r for r in suyos if r.message != "search not found"]
+        if not suyos:
+            continue
+        fallidas = [r for r in suyos if r.status == "error"]
+        try:
+            alerts.record_run(
+                settings, agency, not fallidas,
+                fallidas[0].message if fallidas else None,
+            )
+        except Exception:  # noqa: BLE001 - el aviso es un extra; el lote ya corrió
+            pass
+
+
+def _avisa_de_un_run(settings, agency: str, result: RunResult) -> None:
+    """El aviso del camino de UNA búsqueda (botón ↻, backfill, alta): solo el fallo.
+
+    Este camino ve una sola búsqueda y el disparador de ``alerts`` es de la
+    agencia entera: un éxito aquí rearmaba el flanco que una hermana rota
+    acababa de disparar, y el siguiente lote repetía el correo de la misma
+    avería — la variante manual de la tormenta del 27-08-2026. Rearmar es cosa
+    del lote (:func:`_avisa_del_lote`), el único que ve a la agencia completa.
+    El primer fallo, en cambio, debe salir también por aquí; los repetidos ya
+    los silencia el flanco.
+    """
+    if result.status != "error":
+        return
+    try:
+        alerts.record_run(settings, agency, False, result.message or None)
+    except Exception:  # noqa: BLE001 - el aviso es un extra; el run ya está registrado
+        pass

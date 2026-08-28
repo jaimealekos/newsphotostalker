@@ -10,9 +10,8 @@
 
 ## Sin publicar
 
-### Sin commitear — 2026-08-28
+### 2026-08-28 — Se acaba la tormenta de avisos, y los avisos dicen qué pasó
 
-**Se acaba la tormenta de avisos, y los avisos dicen por fin qué ha pasado.**
 El 27 de agosto llegaron tres correos idénticos en una tarde, todos con el mismo
 texto inútil («no result cards… Timeout 45000ms»). Eran tres averías distintas
 de fondo, y se arreglan por separado:
@@ -37,14 +36,35 @@ de fondo, y se arreglan por separado:
   se reintenta (el texto entra citado), y el dato de «aguantó N días» sale ahora
   también por el login y la búsqueda, no solo por el keep-alive.
 
-166 pruebas en verde, incluido un fichero nuevo que reproduce los tres casos.
+Una revisión adversarial (16 agentes en paralelo) sobre el arreglo cazó cuatro
+flecos, cerrados antes de commitear:
 
-### Commiteado, sin etiquetar — 2026-08-19
+- Los caminos manuales (botón ↻, backfill, alta de búsqueda) **solo anotan el
+  fallo**: su éxito ya no rearma el disparador de la agencia — la variante
+  manual de la misma tormenta.
+- Una búsqueda que **revienta fuera del runner** (p. ej. la BD bloqueada) ya no
+  para el lote ni desaparece del veredicto: cuenta como fallo de su agencia.
+- Borrar una búsqueda con el lote en marcha («search not found») deja de contar
+  como avería de la agencia: es administración, no una caída.
+- La cita de marcas cubre el diagnóstico ENTERO (título y URL incluidos), no
+  solo el texto del body: el `<title>` también lo escribe la página.
 
-- **Los avisos admiten una postdata** (`alerts.postdata`): una coletilla que
-  viaja al final de todos ellos, con instrucciones para quien los recibe. Y el
-  manual explica cómo montar los avisos con ntfy.sh, sin necesidad de webhook
-  propio ni de crear cuenta.
+Y los papeles al día: MANUAL.md explica los tres avisos (y que el de la sesión
+no se filtra por `alerts.agencies`), config.example.yaml lo mismo, y «Problemas
+frecuentes» ya no receta re-login para cualquier error de Reuters. 173 pruebas
+en verde, con dos ficheros nuevos de tests.
+
+### 2026-08-28 — Nace la bitácora del proyecto
+
+BITACORA.md (el reenganche y las normas de la casa), REGISTRO.md (este fichero)
+y CLAUDE.md (el enganche para las sesiones nuevas de Claude Code). Norma nueva:
+los dos primeros se llevan al día en el mismo cambio que toque el programa.
+
+### 2026-08-19 — Los avisos admiten una postdata
+
+`alerts.postdata`: una coletilla que viaja al final de todos los avisos, con
+instrucciones para quien los recibe. Y el manual explica cómo montar los avisos
+con ntfy.sh, sin necesidad de webhook propio ni de crear cuenta.
 
 ---
 

@@ -119,6 +119,12 @@ Hay **dos canales distintos**, y la diferencia importa:
   Este **no** se filtra por agencia a propósito: no avisa de una avería del
   servicio, sino de algo que solo una persona puede arreglar.
 
+Dos matices que importan: el veredicto de la agencia lo da el **refresco global
+entero** (la agencia es buena solo si TODAS sus búsquedas fueron bien), y fuera
+del lote —el botón ↻, el backfill, el alta de una búsqueda— un éxito **no
+rearma** el disparador: solo el lote, que ve a la agencia completa, puede darla
+por sana.
+
 Mezclar los dos canales fue exactamente lo que provocó la tormenta de correos del
 27 de agosto de 2026 (ver [REGISTRO.md](REGISTRO.md)).
 
@@ -145,7 +151,7 @@ Mezclar los dos canales fue exactamente lo que provocó la tormenta de correos d
 .venv/bin/python -m pytest -q             # Linux/macOS
 ```
 
-Hoy son **166 pruebas** y tardan un minuto. El entorno necesita **Python 3.12**
+Hoy son **173 pruebas** y tardan un minuto. El entorno necesita **Python 3.12**
 (es el que fija la CI) y el Chromium de Playwright. Si tras un formateo el `.venv`
 parece muerto, suele revivir intacto reinstalando Python 3.12 en la misma ruta;
 lo que sí hay que volver a bajar es el Chromium
@@ -186,10 +192,12 @@ lo que sí hay que volver a bajar es el Chromium
 ## 9. Estado a 2026-08-28
 
 - La última versión publicada es la **1.2.1** (19-08-2026).
-- **Hay trabajo hecho y sin publicar**, detallado en [REGISTRO.md](REGISTRO.md):
-  un commit sin etiquetar (la postdata de los avisos) y, sin commitear todavía,
-  el arreglo completo de la tormenta de avisos del 27-08. Las 166 pruebas pasan.
-- **Lo que queda pendiente**: commitear ese arreglo y decidir si es la 1.2.2;
-  documentar el canal `reuters-sesion` en el manual; desplegarlo en el NAS (que
-  sigue con el código viejo, y es el que dio la tormenta); y seguir midiendo
-  cuántos días aguanta la sesión de Reuters.
+- **Hay trabajo commiteado y sin publicar**, detallado en [REGISTRO.md](REGISTRO.md):
+  la postdata de los avisos (19-08), la bitácora, y el arreglo completo de la
+  tormenta de avisos del 27-08 — revisado, endurecido y con los papeles al día.
+  Las 173 pruebas pasan.
+- **Lo que queda pendiente**: decidir si esto es la 1.2.2 y publicarla (etiqueta
+  `v1.2.2`; decisión del dueño); desplegar en el NAS (sigue con el código viejo,
+  y es el que dio la tormenta; solo cuando el dueño lo pida); y seguir midiendo
+  cuántos días aguanta la sesión de Reuters — los datos de esa medición viven en
+  el NAS.

@@ -270,8 +270,22 @@ opción «recordar»).
 ## Avisos por webhook
 
 Opcional. Si defines `alerts.webhook_url`, se hace un POST JSON `{subject, message}`
-la **primera** vez que una agencia falla tras funcionar (disparo por flanco; se
-rearma al recuperarse). Puedes apuntarlo a cualquier flujo que reenvíe por email.
+cuando algo se rompe, con disparo **por flanco**: un aviso la primera vez que algo
+falla tras funcionar, silencio mientras siga igual, y rearme al recuperarse.
+Puedes apuntarlo a cualquier flujo que reenvíe por email. Avisan tres cosas:
+
+- **«_agencia_ ha dejado de funcionar»** — el veredicto del refresco global
+  entero: la agencia se da por buena solo si TODAS sus búsquedas fueron bien
+  (el éxito de una búsqueda suelta no rearma el disparador). Se filtra con
+  `alerts.agencies`; por defecto, solo Reuters.
+- **«la sesión de Reuters ha caducado»** — hace falta repetir el login manual, y
+  el aviso dice cuántos días aguantó la sesión. No pasa por el filtro
+  `alerts.agencies` a propósito: no cuenta una avería del servicio, sino que
+  hace falta una persona. Una sesión muerta del todo puede producir este correo
+  Y el de la agencia, cada uno una sola vez.
+- **El keep-alive no da señales de vida** — el programa ha dejado de ejercitar
+  la sesión (planificador caído, navegador que no arranca). Tampoco pasa por el
+  filtro.
 
 ¿No tienes ningún webhook a mano? [ntfy.sh](https://ntfy.sh) funciona sin crear
 cuenta: los avisos llegan a un tema que ves en el navegador o, como
@@ -315,7 +329,12 @@ API JSON (con sesión): `GET /api/status`, `GET /api/searches`.
 
 ## Problemas frecuentes
 
-- **Reuters da error / 0 fotos**: la sesión caducó → repite `login_reuters`.
+- **Reuters da error**: el mensaje ya dice cuál de las tres averías es. «La
+  sesión ha caducado» → repite `login_reuters`. «Muro/challenge de DataDome» →
+  transitorio: espera a que se levante (ver la sección de DataDome); re-loguear
+  contra el muro no ayuda. «no result cards … diagnóstico: …» → la sesión está
+  viva pero la página no pinta resultados; el propio diagnóstico del mensaje
+  cuenta qué se veía (¿cero resultados de verdad? ¿cambio de maqueta?).
 - **Getty devuelve 0**: revisa que el nombre de artista sea el **exacto y completo**.
 - **`spawn UNKNOWN` al lanzar una búsqueda de Reuters (Windows)**: el Chromium
   que empaqueta Playwright no arranca en modo headed en bastantes máquinas

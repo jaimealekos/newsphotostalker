@@ -113,6 +113,38 @@ def test_desactivado_no_avisa(settings, sent):
     assert sent == []
 
 
+def test_un_lote_con_dos_busquedas_avisa_una_vez_por_averia(settings, monkeypatch):
+    """La otra vía de la tormenta del 27-08-2026, con DOS búsquedas.
+
+    El flanco es por AGENCIA y ``record_run`` se llamaba por BÚSQUEDA: con una
+    búsqueda rota de forma persistente y otra sana, cada ciclo de refresco
+    avisaba del fallo y acto seguido REARMABA el disparador con el éxito de la
+    hermana — un correo idéntico por ciclo (17:03, 19:03, 21:03) de la misma
+    avería continua. El lote da la agencia por buena solo si TODAS sus búsquedas
+    fueron bien. Con el código viejo, esto manda tres avisos.
+    """
+    from app.ingest.runner import RunResult, _avisa_del_lote
+
+    monkeypatch.setattr("app.ingest.runner.get_settings", lambda: settings)
+    enviados: list[str] = []
+    monkeypatch.setattr(alerts, "_post", lambda cfg, asunto, mensaje: enviados.append(asunto) or True)
+
+    def ciclo_con_una_rota():
+        _avisa_del_lote([
+            ("reuters", RunResult(1, "error", message="LiveAdapterError: no result cards")),
+            ("reuters", RunResult(2, "ok")),
+        ])
+
+    for _ in range(3):
+        ciclo_con_una_rota()
+    assert len(enviados) == 1
+
+    # Y cuando se arregla, el disparador se rearma: la próxima avería sí avisa.
+    _avisa_del_lote([("reuters", RunResult(1, "ok")), ("reuters", RunResult(2, "ok"))])
+    ciclo_con_una_rota()
+    assert len(enviados) == 2
+
+
 def test_status_refleja_el_estado(settings, sent):
     assert alerts.status(settings, "reuters") is None
     alerts.record_run(settings, "reuters", ok=True)

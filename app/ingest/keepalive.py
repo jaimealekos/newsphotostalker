@@ -16,6 +16,26 @@ sesión es cosa de un humano, desde «ajustes → iniciar sesión en Reuters».
 El intervalo lo fija ``reuters_keepalive_minutes`` (config). Se serializa con
 las búsquedas mediante el lock del runner (una sola instancia de navegador
 sobre el perfil a la vez).
+
+**El keep-alive no escribe JAMÁS en el canal de avisos de la agencia**
+(``record_run(settings, "reuters", ...)``): ese canal es solo de las ejecuciones
+REALES del runner. Cuando el keep-alive lo tocaba, su tick horario anotaba un
+run bueno y REARMABA el disparador de «reuters ha dejado de funcionar»: el
+aviso, pensado para salir una vez por avería, salía uno por tramo — tres
+correos idénticos la tarde del 27-08-2026 con la misma avería de fondo. Aquí se
+usa un canal propio, ``reuters-sesion`` (:data:`CLAVE_SESION`), con la misma
+máquina de estados por flanco de ``alerts``. Cada canal lo rearma quien le
+corresponde: ``reuters-sesion``, cualquier prueba de que la sesión está viva —el
+tick del keep-alive tras un login manual, o una búsqueda real que sale bien
+(:func:`sesion_ejercitada`)—; ``reuters``, la primera búsqueda real que sale
+bien. Una sesión muerta del todo puede producir DOS avisos (uno por canal), cada
+uno una sola vez y ambos con los días que aguantó: precio honesto por que ningún
+escenario pueda ni tormentar ni quedarse callado.
+
+El canal de la sesión NO se filtra por ``alerts.agencies`` (``vigila`` no filtra,
+a diferencia de ``record_run``), y es a propósito: lo que avisa no es que Reuters
+falle —eso es el canal de la agencia, que sí se puede apagar—, sino que hace
+falta un humano para rehacer una sesión que solo un humano puede rehacer.
 """
 
 from __future__ import annotations
@@ -40,6 +60,12 @@ WARM_QUERY = "news"
 
 #: Clave del vigilante en el fichero de avisos.
 CLAVE_VIGILANCIA = "keepalive"
+
+#: Canal de avisos de la SESIÓN, separado del de la agencia ("reuters", que solo
+#: escriben las ejecuciones reales del runner). Ver el docstring del módulo: es
+#: lo que impide que el tick horario rearme el aviso de la agencia y lo convierta
+#: en una tormenta de correos.
+CLAVE_SESION = "reuters-sesion"
 
 #: Cuántos intervalos puede pasar sin dar señal antes de dar la voz de alarma.
 #: Dos, para que un retraso puntual o un reinicio no disparen nada.
@@ -197,9 +223,18 @@ def sesion_ejercitada(settings, agency: str, ok: bool) -> None:
     termina bien es exactamente el trabajo del keep-alive (misma sesión, mismo
     navegador, petición autenticada), así que cuenta como su señal. El tick
     siguiente se la encuentra fresca y se ahorra lanzar un Chromium para nada.
+
+    Por ese mismo argumento rearma el canal de la SESIÓN: si la búsqueda salió
+    bien, la sesión está viva, y queda PROBADO sin lanzar un navegador. Rearmar
+    solo en el tick no bastaba, justo por la línea de arriba: mientras el runner
+    trabaja, la señal está siempre fresca y el tick se salta entero, así que tras
+    el primer aviso de «sesión caducada» el canal se quedaba clavado en
+    ``failing`` y el flanco se tragaba la SIGUIENTE caducidad. Un canal que solo
+    puede callarse es la otra mitad del fallo que se quiso arreglar.
     """
     if agency == "reuters" and ok:
         marca_senal(settings, motivo="búsqueda real")
+        alerts.vigila(settings, CLAVE_SESION, True, "", "")
 
 
 def keepalive_reuters() -> None:
@@ -257,16 +292,36 @@ def _keepalive_locked(settings, cred) -> None:
             try:
                 adapter.search(kind="text", query=WARM_QUERY, since=None, limit=1)
             except Exception as exc:  # noqa: BLE001
-                # Que la búsqueda tropiece puede ser el propio muro apareciendo a
-                # mitad: reclasificar antes de dar la sesión por ejercitada.
-                if adapter._datadome_challenge():
-                    estado = "challenge"
-                else:
+                # Que la búsqueda tropiece puede ser el muro apareciendo a mitad,
+                # o la sesión cayéndose en la propia URL de búsqueda (search() ya
+                # lo clasifica y lanza SinSesionError cuando Reuters la manda al
+                # login). Quien reclasifica es el CLASIFICADOR entero, no la sonda
+                # del captcha a secas: esa etiquetaba «challenge» una caída con el
+                # captcha encima —así llega el login de Reuters, visto en vivo en
+                # 08-2026— y, sin captcha, dejaba el estado en «viva» y rearmaba el
+                # canal de la sesión justo después de que la búsqueda hubiera
+                # demostrado que no lo está.
+                try:
+                    estado = adapter.estado_sesion()
+                except Exception:  # noqa: BLE001 - el clasificador nunca manda el desenlace
+                    estado = "viva"
+                if estado == "viva":
                     log.info("keepalive: la búsqueda de calentamiento no rindió (%s)", exc)
 
         if estado == "viva":
-            alerts.record_run(settings, "reuters", ok=True)
+            # Solo se rearma el canal de la SESIÓN. Antes se anotaba aquí un run
+            # bueno de la agencia, y ese apunte horario rearmaba el aviso de
+            # «reuters ha dejado de funcionar» entre avería y avería: el aviso
+            # por flanco pasaba a salir una vez por tramo (tres correos en una
+            # tarde). Que la agencia funciona lo dicen sus ejecuciones reales.
+            #
+            # La señal va PRIMERO, igual que en la rama de sesión caída: dice «el
+            # keep-alive corrió», y no debe depender de que el aviso llegue a
+            # escribirse — con el alert_state.json bloqueado o el disco lleno, el
+            # keep-alive se quedaba sin señal habiendo trabajado, y el vigilante
+            # acababa acusando al planificador de algo que no había pasado.
             marca_senal(settings)
+            alerts.vigila(settings, CLAVE_SESION, True, "", "")
             log.info("keepalive: sesión Reuters viva")
             return
 
@@ -284,24 +339,43 @@ def _keepalive_locked(settings, cred) -> None:
         # contraseña contra el muro DataDome, y cada intento fallido bloquea la
         # cuenta por IP (pasó en 08-2026). El keep-alive solo MANTIENE viva una
         # sesión ya abierta; rehacerla es cosa de un humano, desde «ajustes →
-        # iniciar sesión en Reuters». Aquí solo se avisa — diciendo cuántos días
-        # aguantó, que es el dato que calibra cuándo conviene avisar por adelantado.
+        # iniciar sesión en Reuters». Aquí solo se avisa, por el canal de la
+        # SESIÓN y diciendo cuántos días aguantó, que es el dato que calibra
+        # cuándo conviene avisar por adelantado.
         marca_senal(settings, motivo="sesión caída")  # el keep-alive corrió; otra cosa es lo que encontró
         edad = dias_desde_login_humano(settings)
-        duracion = f"la sesión ha aguantado {edad:.1f} días. " if edad is not None else ""
+        duracion = f"La sesión aguantó {edad:.1f} días. " if edad is not None else ""
         log.warning("keepalive: sesión de Reuters caída; hace falta login manual. %s", duracion)
-        alerts.record_run(
+        alerts.vigila(
             settings,
-            "reuters",
-            ok=False,
-            error=(
-                f"keepalive: sesión caída; {duracion}"
-                "entra a mano desde «ajustes → iniciar sesión en Reuters»"
+            CLAVE_SESION,
+            False,
+            "[newsphotostalker] la sesión de Reuters ha caducado",
+            (
+                f"El keep-alive ha encontrado la sesión de Reuters caída. {duracion}"
+                "Mientras no la rehagas, las búsquedas de Reuters no traerán nada.\n\n"
+                "Entra a mano una vez desde «ajustes → iniciar sesión en Reuters» "
+                "(login_reuters.bat / python -m scripts.login_reuters): se abre una "
+                "ventana del navegador, resuelves el acceso y la sesión queda "
+                "guardada en el perfil.\n\n"
+                "El login no se automatiza a propósito: Reuters cuenta cada intento "
+                "fallido contra su muro y bloquea la cuenta por IP."
             ),
         )
     except Exception as exc:  # noqa: BLE001
+        # Ni un canal de aviso se toca aquí: que el keep-alive REVIENTE (un
+        # navegador que no arranca, el perfil bloqueado) no dice nada de la
+        # agencia, y escribirlo en su canal era la otra vía de rearme/tormenta.
+        # La cobertura la da el vigilante: sin señal marcada, revisa_atraso
+        # avisará de que el keep-alive no da señal. Que esa red exista depende de
+        # UNA cosa —que el vigilante mida ANTES del lote de búsquedas (ver
+        # scheduler._run_all_job)—, porque cada búsqueda buena de Reuters marca la
+        # señal: preguntando después, se medía siempre el instante más fresco y un
+        # keep-alive que revienta en cada tick era invisible para siempre. Medido
+        # antes, solo queda sin avisar el caso en que las búsquedas reales van tan
+        # seguidas que ejercitan la sesión ellas solas — que es justo cuando la
+        # ausencia del keep-alive no hace daño.
         log.error("keepalive Reuters falló: %s", exc)
-        alerts.record_run(settings, "reuters", ok=False, error=f"keepalive: {exc}")
     finally:
         try:
             adapter.close()

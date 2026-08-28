@@ -46,9 +46,15 @@ agencies:
     username: null      # las previews con marca de agua no necesitan login
     password: null
 
-# Aviso opcional cuando una agencia deja de funcionar (disparo por flanco: un
-# aviso en el PRIMER fallo tras funcionar; se rearma al recuperarse). webhook_url
-# recibe un POST JSON {subject, message}; puedes apuntarlo a tu propio webhook.
+# Aviso opcional cuando algo se rompe (disparo por flanco: un aviso en el PRIMER
+# fallo tras funcionar; se rearma al recuperarse). webhook_url recibe un POST
+# JSON {subject, message}; puedes apuntarlo a tu propio webhook.
+#
+# agencies filtra SOLO los avisos de «ha dejado de funcionar» (el veredicto lo da
+# el refresco global entero: la agencia es buena si TODAS sus búsquedas van bien).
+# Los avisos de la sesión de Reuters («la sesión ha caducado») y los del
+# vigilante del keep-alive no pasan por ese filtro: no cuentan una avería del
+# servicio, sino que hace falta una persona.
 #
 # ¿No tienes webhook? ntfy.sh sirve sin crear cuenta: los avisos llegan a un
 # tema que ves en el navegador o en su app del móvil (notificación push):

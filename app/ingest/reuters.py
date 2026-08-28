@@ -82,12 +82,28 @@ class ReutersAdapter(LiveAdapter):
         # un navegador normal y deja que un humano resuelva el acceso. Sin sesión
         # viva, la búsqueda falla limpiamente y se pide el login manual.
         raise SinSesionError(
-            "no hay sesión de Reuters viva. Entra a mano una vez desde "
-            "«ajustes → iniciar sesión en Reuters» (login_reuters.bat / "
-            "python -m scripts.login_reuters): se abre una ventana del navegador, "
-            "resuelves el acceso y la sesión queda guardada en el perfil. El login "
-            "no se automatiza: Reuters bloquea la cuenta si se intenta."
+            f"no hay sesión de Reuters viva{self._coletilla_duracion()}. "
+            "Entra a mano una vez desde «ajustes → iniciar sesión en Reuters» "
+            "(login_reuters.bat / python -m scripts.login_reuters): se abre una "
+            "ventana del navegador, resuelves el acceso y la sesión queda guardada "
+            "en el perfil. El login no se automatiza: Reuters bloquea la cuenta si "
+            "se intenta."
         )
+
+    def _coletilla_duracion(self) -> str:
+        """« (la sesión aguantó 8.7 días)», o nada si no se sabe.
+
+        Cuánto vive una sesión de Reuters no es público, y solo se aprende
+        midiéndolo: cada aviso de sesión muerta que lleva el dato acerca el día
+        en que podamos avisar ANTES de que caduque. El camino del keep-alive ya
+        lo decía; este —el login y la búsqueda, por donde sale el aviso que
+        acaba leyendo un humano— salía sin él, justo el dato que su propia
+        postdata pide.
+        """
+        from .keepalive import dias_desde_login_humano  # aquí dentro: evita el ciclo
+
+        dias = dias_desde_login_humano(self.settings)
+        return f" (la sesión aguantó {dias:.1f} días)" if dias is not None else ""
 
     def _looks_logged_in(self) -> bool:
         return "/login" not in self.page.url and "auth.thomsonreuters.com" not in self.page.url
@@ -132,7 +148,7 @@ class ReutersAdapter(LiveAdapter):
         try:
             self.page.wait_for_selector(CARD, timeout=self.settings.playwright.timeout_ms)
         except Exception as exc:  # noqa: BLE001
-            raise LiveAdapterError(f"Reuters: no result cards at {url} ({exc})") from exc
+            raise self._sin_tarjetas(url, exc) from exc
         self.page.wait_for_timeout(1200)
 
         # La lista de resultados está VIRTUALIZADA: el DOM solo mantiene ~12
@@ -174,6 +190,80 @@ class ReutersAdapter(LiveAdapter):
             reverse=True,
         )
         return assets[:limit]
+
+    def _sin_tarjetas(self, url: str, exc: Exception) -> LiveAdapterError:
+        """Construye el error de «no hay tarjetas» DICIENDO cuál de los tres es.
+
+        Los tres avisos idénticos del 27-08-2026 («no result cards at … Timeout
+        45000ms») no permitían distinguir la única avería que exige un humano —la
+        sesión caducada— del muro de DataDome servido en la propia URL de
+        búsqueda, ni de una página logueada que sencillamente no pinta nada. Aquí
+        se clasifica ANTES de reventar: cada caso sale con su nombre, con su
+        reintentable y, cuando toca, con los días que aguantó la sesión.
+        """
+        try:
+            estado = self.estado_sesion()
+        except Exception:  # noqa: BLE001 - el clasificador nunca manda el desenlace
+            estado = "viva"  # sin diagnóstico fiable, el caso genérico
+
+        if estado == "caida":
+            # Lo mismo que ve login() al abrir, pero visto desde la búsqueda:
+            # Reuters redirige EN SERVIDOR al login. No se reintenta (SinSesionError
+            # ya lo dice), porque la sesión no va a aparecer sola.
+            return SinSesionError(
+                "Reuters mandó la búsqueda al login: la sesión ha caducado"
+                f"{self._coletilla_duracion()}. Entra a mano desde «ajustes → "
+                "iniciar sesión en Reuters» (login_reuters.bat / python -m "
+                "scripts.login_reuters). El login no se automatiza: Reuters "
+                "bloquea la cuenta si se intenta."
+            )
+
+        if estado == "challenge":
+            # Muro transitorio: la sesión está, pero DataDome se ha puesto delante
+            # de esta URL. Reintentable a propósito — los 15 s del runner suelen
+            # bastar para pasarlo.
+            return LiveAdapterError(
+                "Reuters: muro/challenge de DataDome servido en la URL de búsqueda "
+                f"({url}); no hay resultados que leer. El reintento puede pasarlo."
+            )
+
+        # Sesión viva y aun así ni una tarjeta. Hoy no sabemos si es cambio de
+        # maqueta, cero resultados o la SPA a medio morir, así que el aviso se
+        # lleva puesto el diagnóstico y nos lo cuenta él la próxima vez.
+        return LiveAdapterError(
+            f"Reuters: no result cards at {url} ({exc}); {self._diagnostico_pagina()}"
+        )
+
+    def _diagnostico_pagina(self) -> str:
+        """Una línea con lo que se ve en la página, para que el aviso se explique solo.
+
+        Cada sonda va por separado y a prueba de fallos: una página a medio morir
+        —que es justo la que provoca este camino— no debe convertir el
+        diagnóstico en una segunda excepción que tape la primera. Y las que
+        admiten plazo lo llevan CORTO: esto corre con el lock del runner tomado y
+        después de haber quemado los 45 s del wait_for_selector, así que heredar
+        ese mismo plazo por defecto sería pagar otro minuto de espera —dos, con el
+        reintento— por una línea informativa. El try/except protege de la
+        excepción; del plantón, solo el plazo.
+
+        La línea sale ENTERA con las marcas del runner citadas (_cita_marcas):
+        el <title> y la URL también los escribe la página, y la red por cadenas
+        del runner coteja el mensaje completo — neutralizar solo el texto del
+        body dejaba al título el poder de vetar un reintento en silencio.
+        """
+        sondas = (
+            ("url", lambda: self.page.url),
+            ("título", lambda: self.page.title()),
+            ("nodos data-qa-component", lambda: len(self.page.query_selector_all("[data-qa-component]"))),
+            ("texto", lambda: _recorte(self.page.inner_text("body", timeout=2000))),
+        )
+        partes = []
+        for etiqueta, sonda in sondas:
+            try:
+                partes.append(f"{etiqueta}={sonda()!r}")
+            except Exception:  # noqa: BLE001
+                partes.append(f"{etiqueta}=?")
+        return _cita_marcas("diagnóstico: " + ", ".join(partes))
 
     def _harvest_visible(self, collected: dict, kind: str, query: str) -> int:
         """Parsea las tarjetas ahora visibles y añade las nuevas. Devuelve
@@ -252,6 +342,37 @@ class ReutersAdapter(LiveAdapter):
         m = re.search(r'url\(["\']?([^"\')]+)', css or "")
         return m.group(1) if m else None
 
+
+
+def _recorte(texto: str | None, limite: int = 150) -> str:
+    """Texto visible con los espacios colapsados y recortado: lo justo para
+    reconocer de un vistazo qué página era, sin inundar el correo del aviso."""
+    return re.sub(r"\s+", " ", texto or "").strip()[:limite]
+
+
+def _cita_marcas(texto: str) -> str:
+    """Neutraliza en ``texto`` las marcas de NO_REINTENTABLES, citándolas.
+
+    El runner decide si reintentar preguntando primero a la excepción y, como
+    red, cotejando el mensaje ENTERO con NO_REINTENTABLES; desde que el
+    diagnóstico incrusta lo que se lee en la página —body, <title> y URL, que
+    los tres los escribe la página— bastaría con que Reuters pusiera «no hay
+    sesión» en cualquiera de ellos —el navegador va en es-ES— para que un fallo
+    perfectamente reintentable dejara de reintentarse en silencio. Lo que dice
+    la página es una prueba, no una orden: las marcas se neutralizan al entrar,
+    y sobre la línea completa del diagnóstico, no sonda a sonda — citar solo el
+    body dejaba al título ese poder de veto (lo cazó la revisión de 08-2026).
+    """
+    from .runner import NO_REINTENTABLES  # aquí dentro: evita el ciclo de imports
+
+    def _cita(m: re.Match) -> str:
+        # Punto medio en vez del espacio ("no·hay·sesión"): se lee igual y ya no
+        # casa. Si algún día la marca fuera de una sola palabra, se parte igual.
+        trozo = m.group(0)
+        return trozo.replace(" ", "·") if " " in trozo else trozo[:1] + "·" + trozo[1:]
+
+    marcas = "|".join(re.escape(marca) for marca in NO_REINTENTABLES)
+    return re.sub(marcas, _cita, texto, flags=re.IGNORECASE) if marcas else texto
 
 
 def _parse_reuters_date(text: str | None) -> datetime | None:

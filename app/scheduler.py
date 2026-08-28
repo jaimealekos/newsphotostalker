@@ -55,22 +55,28 @@ def shutdown() -> None:
 
 # --- refresco global -------------------------------------------------------
 def _run_all_job() -> None:
-    try:
-        results = run_all_enabled()
-        oks = sum(1 for r in results if r.status != "error")
-        log.info("refresh-all: %s búsquedas (%s ok)", len(results), oks)
-    except Exception:  # noqa: BLE001
-        log.exception("refresh-all crashed")
     # Aprovechando que este trabajo SÍ se está ejecutando, se comprueba que el
-    # otro —el keep-alive— también. Va fuera del try de arriba a propósito: que
-    # el refresco falle es justo cuando más interesa saber si el keep-alive
-    # sigue vivo. Y nunca debe tumbar el trabajo: es vigilancia, no ingesta.
+    # otro —el keep-alive— también. Va ANTES del lote, y no es un detalle de
+    # estilo: cada búsqueda de Reuters que sale bien marca la señal del keep-alive
+    # (sesion_ejercitada), así que preguntando DESPUÉS se medía siempre el
+    # instante en que la señal está más fresca, y un keep-alive que revienta en
+    # cada tick no habría hecho saltar nunca la alarma. Medido antes, lo que se
+    # mira es la señal que dejó el ciclo anterior: si el keep-alive no ha pasado
+    # por ahí, se nota. Va en su propio try: es vigilancia, no ingesta, y nunca
+    # debe tumbar el refresco.
     try:
         from .ingest.keepalive import revisa_atraso
 
         revisa_atraso()
     except Exception:  # noqa: BLE001
         log.exception("la vigilancia del keep-alive falló")
+
+    try:
+        results = run_all_enabled()
+        oks = sum(1 for r in results if r.status != "error")
+        log.info("refresh-all: %s búsquedas (%s ok)", len(results), oks)
+    except Exception:  # noqa: BLE001
+        log.exception("refresh-all crashed")
 
 
 def reschedule() -> None:
