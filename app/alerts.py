@@ -90,8 +90,11 @@ def _send(cfg, agency: str, error: str) -> bool:
         f"que vuelva a funcionar y falle de nuevo.\n\n"
         f"Error: {error}\n\n"
         "Revisa la actividad en el panel. Ya se reintentó una vez antes de dar "
-        "la ejecución por fallida, así que no es un tropiezo aislado. Si es la "
-        "sesión de Reuters, vuelve a iniciar sesión (ver el README)."
+        "la ejecución por fallida, así que no es un tropiezo aislado. Lo que hay "
+        "que hacer lo dice el error de arriba: desde la 1.2.2 nombra la avería "
+        "en vez de describirla. Y si de verdad hubiera que rehacer la sesión de "
+        "Reuters, lo pide su propio aviso —«la sesión de Reuters ha caducado»—, "
+        "no este."
     )
     return _post(cfg, subject, message)
 

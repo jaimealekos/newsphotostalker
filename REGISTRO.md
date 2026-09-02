@@ -10,6 +10,25 @@
 
 ## Sin publicar
 
+### El corte de Reuters ya sale con su nombre, y el aviso deja de mandar al login (02-09)
+
+Saltó la alerta el 31-08 a las 11:07 y el diagnóstico de la 1.2.2 hizo su
+trabajo: sesión viva, título «Reuters Connect», 23 nodos `data-qa-component` y
+ni una tarjeta. Con el historial del NAS quedó cerrado: **corte del lado de
+Reuters**, de 09:01 a 17:05 (8 h), en las tres búsquedas a la vez, con el
+keep-alive viendo la sesión viva cada hora, y recuperado solo (a las 21:00
+volvió a entrar una foto). Segunda vez con la misma huella tras el 27-08.
+
+- El error de «sesión viva y ni una tarjeta» **lo nombra**: «Suele ser un corte
+  de Reuters … la sesión no se toca», con la huella detrás para poder
+  desmentirlo si algún día cambia la maqueta.
+- El aviso de agencia **deja de recomendar re-login a ciegas**. Decía «Si es la
+  sesión de Reuters, vuelve a iniciar sesión» para una sesión que llevaba 11
+  días perfecta; desde la 1.2.2 la caducidad tiene su propio aviso, así que este
+  remite al error y a aquel.
+- De paso, la sesión va por **13,1 días viva** (login del 19-08): el TTL de 24 h
+  queda enterrado del todo.
+
 ### El NAS ya corre la 1.2.2, y la medición en vivo cierra dos preguntas (28-08)
 
 Desplegada a las 22:45 (git pull + reinicio del contenedor; arranque limpio).

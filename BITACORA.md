@@ -8,7 +8,7 @@
 > Los cambios, uno a uno y por fechas, van en [REGISTRO.md](REGISTRO.md).
 > Cómo se usa el programa, en [MANUAL.md](MANUAL.md).
 >
-> **Última actualización: 2026-08-28.**
+> **Última actualización: 2026-09-02.**
 
 ---
 
@@ -95,12 +95,21 @@ decisiones que parecen raras y no lo son:
    encuentra la sesión caída, avisa a un humano y ya está.
 
 Cuánto dura una sesión no es público y se mide en vivo: cada aviso lleva puesto
-«la sesión aguantó *N* días». Lo medido hasta hoy (datos del NAS, 28-08-2026):
+«la sesión aguantó *N* días». Lo medido hasta hoy (datos del NAS, 02-09-2026):
 la primera sesión tras el desbaneo murió en 1.0 días —de ahí salió la sospecha
-de un tope duro de ~24 h—, pero la siguiente lleva **más de 9 días viva** con el
+de un tope duro de ~24 h—, pero la siguiente lleva **más de 13 días viva** con el
 keep-alive horario, así que esa sospecha queda **descartada**: bien ejercitada,
 la sesión es de larga vida, y aquella caída temprana fue otra cosa (probablemente
 la resaca del desbaneo). El re-login manual es excepcional, no diario.
+
+**Y hay una avería que NO es la sesión: los cortes de Reuters.** Dos veces
+medidas (27-08-2026 unas 4 h; 31-08-2026 unas 8 h, de 09:01 a 17:05), con huella
+idéntica: la maqueta de la página entra entera —cabecera, filtros, tu avatar: 23
+nodos `data-qa-component`—, la rejilla de resultados se queda vacía en **todas**
+las búsquedas a la vez, el keep-alive sigue viendo la sesión viva cada hora, y al
+cabo de unas horas se arregla solo. El aviso ya lo dice con ese nombre y añade
+«la sesión no se toca», porque el correo del 31-08 recomendaba re-loguear una
+sesión que llevaba 11 días perfecta.
 
 También hay dos salidas laterales: **exportar / importar sesión** (para hacer el
 login en un portátil y llevarla a un servidor sin pantalla) y la vía pública de

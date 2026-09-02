@@ -227,11 +227,25 @@ class ReutersAdapter(LiveAdapter):
                 f"({url}); no hay resultados que leer. El reintento puede pasarlo."
             )
 
-        # Sesión viva y aun así ni una tarjeta. Hoy no sabemos si es cambio de
-        # maqueta, cero resultados o la SPA a medio morir, así que el aviso se
-        # lleva puesto el diagnóstico y nos lo cuenta él la próxima vez.
+        # Sesión viva y aun así ni una tarjeta. Cuando se escribió esto no
+        # sabíamos cuál de tres cosas era; el diagnóstico que se lleva puesto lo
+        # contó, y son dos episodios con la MISMA huella: 27-08-2026 (~4 h) y
+        # 31-08-2026 (~8 h, 09:01→17:05). En los dos, la maqueta entra entera
+        # —cabecera, filtros, el avatar de tu cuenta: 23 nodos data-qa-component—
+        # y la rejilla de resultados se queda vacía en TODAS las búsquedas a la
+        # vez, con el keep-alive viendo la sesión viva cada hora; luego se
+        # arregla solo. Eso es un corte del lado de Reuters, no una avería de
+        # aquí, y el mensaje lo dice para que nadie salga corriendo a rehacer una
+        # sesión que está perfectamente. El diagnóstico sigue detrás a propósito:
+        # es lo que permitirá DESMENTIR esta lectura si algún día la huella
+        # cambia —una maqueta nueva daría otro recuento de nodos, y cero
+        # resultados de verdad traería su texto de «sin resultados»—.
         return LiveAdapterError(
-            f"Reuters: no result cards at {url} ({exc}); {self._diagnostico_pagina()}"
+            f"Reuters: la página carga con la sesión viva, pero no pinta ni una "
+            f"tarjeta en {url}. Suele ser un corte de Reuters (visto el 27 y el "
+            f"31-08-2026, horas seguidas y en todas las búsquedas a la vez) que "
+            f"se recupera solo: la sesión no se toca. ({exc}); "
+            f"{self._diagnostico_pagina()}"
         )
 
     def _diagnostico_pagina(self) -> str:

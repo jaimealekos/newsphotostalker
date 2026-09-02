@@ -332,9 +332,13 @@ API JSON (con sesión): `GET /api/status`, `GET /api/searches`.
 - **Reuters da error**: el mensaje ya dice cuál de las tres averías es. «La
   sesión ha caducado» → repite `login_reuters`. «Muro/challenge de DataDome» →
   transitorio: espera a que se levante (ver la sección de DataDome); re-loguear
-  contra el muro no ayuda. «no result cards … diagnóstico: …» → la sesión está
-  viva pero la página no pinta resultados; el propio diagnóstico del mensaje
-  cuenta qué se veía (¿cero resultados de verdad? ¿cambio de maqueta?).
+  contra el muro no ayuda. «La página carga con la sesión viva, pero no pinta ni
+  una tarjeta» → **es un corte de Reuters, no tuyo**: no toques la sesión, se
+  recupera solo. Visto dos veces (27-08-2026 unas 4 h y 31-08-2026 unas 8 h), y
+  las dos con la misma señal: falla en **todas** las búsquedas a la vez y el
+  keep-alive sigue viendo la sesión viva. El diagnóstico que acompaña al mensaje
+  —título, URL, nodos de la maqueta y un trozo del texto— es lo que permite
+  distinguirlo de un cambio de maqueta si algún día deja de encajar.
 - **Getty devuelve 0**: revisa que el nombre de artista sea el **exacto y completo**.
 - **`spawn UNKNOWN` al lanzar una búsqueda de Reuters (Windows)**: el Chromium
   que empaqueta Playwright no arranca en modo headed en bastantes máquinas
