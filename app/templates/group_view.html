@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}{{ grupo.titulo }} · newsphotostalker{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>
+    {{ grupo.titulo }}
+    <span class="muted">({{ total }} fotos de {{ busquedas|length }} {{ 'búsqueda' if busquedas|length == 1 else 'búsquedas' }})</span>
+  </h1>
+  <div class="head-actions">
+    <a href="/" class="btn btn-ghost">← Volver</a>
+  </div>
+</div>
+
+{# De qué está hecho el feed. Un montón de fotos mezcladas sin decir de dónde
+   salen no se puede leer: aquí se ve la lista y se entra a cada búsqueda. #}
+{% if busquedas %}
+<div class="grupo-fuentes">
+  {% for st in busquedas %}
+  <a class="fuente{% if st.has_new %} fuente-nueva{% endif %}" href="/searches/{{ st.search.id }}"
+     title="{{ st.asset_count }} fotos{% if st.has_new %} · con novedades{% endif %}">
+    <span class="agency agency-{{ st.search.agency }}">{{ st.search.agency|upper }}</span>
+    <span class="fuente-nombre">{{ st.search.name }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if assets %}
+<div class="photo-grid">
+  {% for a in assets %}
+  {# Igual que en la vista de una búsqueda: la ficha va dentro del enlace a la
+     foto, y la fila de abajo FUERA, porque el nombre del fotógrafo es a su vez
+     un enlace y anidarlos no es HTML válido. #}
+  {% set es_nueva = a.id in destacadas %}
+  <div class="card{% if es_nueva %} card-nueva{% endif %}">
+    <a class="card-link" href="/asset/{{ a.id }}">
+      <div class="card-img">
+        {% if a.thumbnail_path %}
+        <img loading="lazy" src="/media/{{ a.thumbnail_path }}" alt="{{ a.title or a.caption or '' }}">
+        {% else %}
+        <div class="noimg">sin imagen</div>
+        {% endif %}
+        {% if es_nueva %}<span class="marca-nueva" title="No la habías visto">nueva</span>{% endif %}
+      </div>
+      <div class="card-body">
+        <div class="card-cap">{{ (a.caption or a.title or '')[:110] }}</div>
+      </div>
+    </a>
+    <div class="card-meta">
+      {% set busqueda = url_del_fotografo(a.agency, a.photographer) %}
+      {% if busqueda %}
+      <a class="autor" href="{{ busqueda }}" target="_blank" rel="noopener noreferrer"
+         title="Ver el trabajo de {{ a.photographer }} en {{ a.agency|upper }}">{{ a.photographer }}</a>
+      {% else %}
+      <span>{{ a.photographer or '—' }}</span>
+      {% endif %}
+      <span>{{ a.captured_at|ymd }}</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% set pages = ((total - 1) // per_page) + 1 %}
+{% if pages > 1 %}
+<div class="pager">
+  {% if page > 1 %}<a class="btn btn-ghost" href="/groups/{{ grupo.id }}?page={{ page-1 }}">← Anterior</a>{% endif %}
+  <span class="muted">Página {{ page }} de {{ pages }}</span>
+  {% if page < pages %}<a class="btn btn-ghost" href="/groups/{{ grupo.id }}?page={{ page+1 }}">Siguiente →</a>{% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+  {% if busquedas %}
+  <p>Las búsquedas de este grupo aún no tienen fotos.</p>
+  <p class="muted">Entra en cualquiera de ellas y pulsa «↻ Ejecutar», o descarga su histórico.</p>
+  {% else %}
+  <p>Este grupo está vacío.</p>
+  <p class="muted">Ve a <a href="/?order=1">grupos y orden</a> y arrastra búsquedas hasta él.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

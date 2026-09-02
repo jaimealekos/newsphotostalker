@@ -45,7 +45,7 @@ class User(Base):
     searches: Mapped[list["Search"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    separators: Mapped[list["Separator"]] = relationship(
+    groups: Mapped[list["SearchGroup"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -73,8 +73,18 @@ class Search(Base):
 
     enabled: Mapped[bool] = mapped_column(default=True)
 
-    # Sitio que ocupa en el panel. El orden lo fija el usuario desde el modo
-    # edición y se comparte con los separadores (una sola lista ordenada).
+    # Grupo al que pertenece en el panel. Nullable SOLO por la migración: en
+    # cuanto arranca el programa, toda búsqueda tiene grupo (el arranque asigna
+    # «Sin grupo» a las huérfanas, y borrar un grupo las devuelve ahí). El
+    # ondelete es SET NULL para que un borrado a pelo en la base no se lleve por
+    # delante las búsquedas ni sus fotos; el arranque siguiente las readopta.
+    group_id: Mapped[int | None] = mapped_column(
+        ForeignKey("search_groups.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+
+    # Sitio que ocupa DENTRO de su grupo. Antes era la posición en una lista
+    # única compartida con los separadores; desde los grupos, el panel ordena
+    # primero por grupo y luego por esto.
     position: Mapped[int] = mapped_column(Integer, default=0, index=True)
 
     # Runtime state
@@ -90,6 +100,7 @@ class Search(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     user: Mapped["User"] = relationship(back_populates="searches")
+    group: Mapped["SearchGroup"] = relationship(back_populates="searches")
     assets: Mapped[list["Asset"]] = relationship(
         back_populates="search", cascade="all, delete-orphan"
     )
@@ -100,22 +111,45 @@ class Search(Base):
         return f"{self.retention_mb} MB"
 
 
-class Separator(Base):
-    """Línea de separación con título dentro del panel.
+#: Nombre del grupo que recoge a las búsquedas sin sitio propio. No es un grupo
+#: especial: se puede renombrar, mover y hasta borrar (si está vacío). Lo único
+#: que tiene de particular es que el arranque lo crea cuando hace falta.
+GRUPO_POR_DEFECTO = "Sin grupo"
 
-    Comparte la escala de ``position`` con las búsquedas: el panel mezcla ambas
-    en una sola lista ordenada, y el modo edición reparte las posiciones."""
 
-    __tablename__ = "separators"
+class SearchGroup(Base):
+    """Un grupo del panel: una carpeta con nombre que contiene búsquedas.
+
+    Sustituye a los separadores que hubo hasta la 1.2. Aquéllos eran solo una
+    raya con rótulo —aire entre bloques—: no *contenían* nada, así que ni se podía saber
+    qué búsquedas caían dentro de cada bloque salvo mirando el orden, ni había
+    dónde colgar nada de un bloque entero. El grupo sí es un contenedor: toda
+    búsqueda pertenece a exactamente uno, y eso es lo que permite el feed —ver de
+    corrido las fotos de todas las búsquedas del grupo— y arrastrar de un grupo a
+    otro como en una lista de reproducción.
+
+    La maqueta del panel no cambia: el grupo se pinta igual que el separador de
+    antes (una regla con su rótulo, y aire encima), porque ese corte entre
+    bloques era justo lo que se quería conservar.
+    """
+
+    __tablename__ = "search_groups"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True
     )
-    label: Mapped[str] = mapped_column(String(200), default="")
+    name: Mapped[str] = mapped_column(String(200), default="")
     position: Mapped[int] = mapped_column(Integer, default=0, index=True)
 
-    user: Mapped["User"] = relationship(back_populates="separators")
+    user: Mapped["User"] = relationship(back_populates="groups")
+    searches: Mapped[list["Search"]] = relationship(back_populates="group")
+
+    @property
+    def titulo(self) -> str:
+        """Cómo se lee el grupo. Un grupo sin nombre existe (se puede crear y
+        quedarse a medias), y necesita algo que pulsar para abrir su feed."""
+        return self.name or "Sin título"
 
 
 class Asset(Base):

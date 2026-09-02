@@ -37,7 +37,7 @@ Las piezas que hay que conocer:
 | Pieza | Qué hace |
 |---|---|
 | `app/main.py` | La web: panel, actividad, ajustes, API JSON. |
-| `app/models.py` | Los datos: usuario, búsquedas, separadores, fotos, historial. |
+| `app/models.py` | Los datos: usuario, búsquedas, grupos, fotos, historial. |
 | `app/scheduler.py` | El reloj: lanza el **refresco global** (todas las búsquedas juntas). |
 | `app/ingest/runner.py` | Ejecuta **una** búsqueda de principio a fin: busca, descarga, guarda, purga. |
 | `app/ingest/factory.py` | Elige el adaptador según la agencia y el modo. |
@@ -116,7 +116,34 @@ login en un portátil y llevarla a un servidor sin pantalla) y la vía pública 
 reuters.com, que se probó y se **descartó** — funciona sin login, pero solo
 publica un 5-10 % del teletipo.
 
-## 5. Los avisos
+## 5. El panel: grupos
+
+Toda búsqueda vive **dentro de un grupo**, y ninguna se queda fuera: la que no
+tiene sitio propio cae en **«Sin grupo»**, que es donde nacen las nuevas y donde
+vuelven las que se quedan sin casa al borrar el suyo. Esa regla —ninguna búsqueda
+huérfana— es la que sostiene todo lo demás, y se garantiza en tres sitios: el
+arranque, el pintado del panel y el guardado del orden.
+
+- **Se ven** como el separador de la 1.1: aire encima y una regla con el rótulo.
+  La maqueta es a propósito la misma; lo que cambia es que el grupo *contiene*.
+- **Se ordenan arrastrando**, y una búsqueda cambia de grupo soltándola en otro
+  bloque, como una canción entre listas de reproducción. Detalle que importa: el
+  grupo de cada búsqueda **sale de la posición en la lista** (pertenece al último
+  rótulo que tiene por encima), no de un campo aparte. Así no hay dos estados que
+  reconciliar.
+- **Pulsando el nombre** se abre el **feed del grupo**: todas las fotos de todas
+  sus búsquedas, mezcladas y de nueva a vieja. Abrirlo **no apaga ninguna luz**
+  de novedades — es para leer, y apagarlas todas de golpe borraría justo lo que
+  el panel usa para decir dónde ha entrado algo.
+- **Borrar un grupo NO borra sus búsquedas**: se mudan a «Sin grupo». Para tirar
+  una búsqueda está su propio botón, que sí avisa de lo que se lleva.
+
+Al actualizar desde la 1.2, los separadores se convierten en grupos solos y el
+panel queda igual que estaba: cada separador pasa a ser el grupo de lo que tenía
+debajo, y lo de antes del primero se queda en «Sin grupo». Los separadores sin
+rótulo pasan a llamarse «Sin título» (un grupo hay que poder pulsarlo).
+
+## 6. Los avisos
 
 Si configuras `alerts.webhook_url`, el programa manda un POST JSON
 `{subject, message}` cuando algo se rompe. La regla es **un aviso por avería, no
@@ -140,7 +167,7 @@ por sana.
 Mezclar los dos canales fue exactamente lo que provocó la tormenta de correos del
 27 de agosto de 2026 (ver [REGISTRO.md](REGISTRO.md)).
 
-## 6. Dónde vive cada cosa
+## 7. Dónde vive cada cosa
 
 - **El código de desarrollo** está en `D:\CODE\github\newsphotostalker`, que **no
   es un disco local**: es una unidad de red. Si `git` se queja de *dubious
@@ -156,7 +183,7 @@ Mezclar los dos canales fue exactamente lo que provocó la tormenta de correos d
 - **Los paquetes** de Windows, macOS y Linux los compila GitHub Actions en cada
   etiqueta `v*`. Nadie compila a mano.
 
-## 7. Cómo se trabaja
+## 8. Cómo se trabaja
 
 ```sh
 .venv/Scripts/python.exe -m pytest -q     # Windows
@@ -169,7 +196,7 @@ parece muerto, suele revivir intacto reinstalando Python 3.12 en la misma ruta;
 lo que sí hay que volver a bajar es el Chromium
 (`python -m playwright install chromium`).
 
-## 8. Normas del proyecto
+## 9. Normas del proyecto
 
 1. **Esta bitácora se lleva siempre al día.** Es la norma principal. Si un cambio
    altera cómo funciona el programa, dónde vive algo o cómo se trabaja, se
@@ -201,18 +228,18 @@ lo que sí hay que volver a bajar es el Chromium
     suben, y las direcciones del NAS tampoco se escriben aquí.
 11. **Al NAS no se entra sin que lo pida el dueño.**
 
-## 9. Estado a 2026-08-28
+## 10. Estado a 2026-09-02
 
-- La última versión publicada es la **1.2.2** (28-08-2026): el arreglo de la
-  tormenta de avisos, revisado, con dos ficheros nuevos de tests y los papeles
-  al día. La bitácora nació también hoy. Las 173 pruebas pasan.
-- La 1.2.2 **corre en el NAS** desde el 28-08 a las 22:45 (git pull + reinicio
-  del contenedor; arranque limpio, planificador y keep-alive programados).
-- **Cerrado hoy con los datos del NAS**: la tormenta del 27-08 fue un corte
-  transitorio de Reuters de ~4 horas (15:00–19:00, «no result cards» con la
-  sesión viva) que se arregló solo; los tres correos los fabricó el rearme del
-  keep-alive, exactamente lo que la 1.2.2 elimina. Y la sesión lleva 9+ días
-  viva sin re-login: el TTL de 24 h queda descartado (ver la sección 4).
+- La última versión **publicada** es la **1.2.2** (28-08-2026), y es la que
+  **corre en el NAS** desde esa noche.
+- **Sin publicar, en `main`**, dos cosas: el corte de Reuters con nombre propio
+  (el aviso de agencia ya no manda a rehacer la sesión a ciegas) y **los grupos
+  del panel con su feed**, que es lo que estrena la sección 5. 190 pruebas en
+  verde. Falta etiquetar la versión y desplegarla.
+- **Cerrado con los datos del NAS**: los dos episodios de «no result cards con la
+  sesión viva» (27-08 unas 4 h; 31-08 unas 8 h) son **cortes de Reuters**, no
+  averías de aquí, y se recuperaron solos. La sesión lleva **13+ días viva** sin
+  re-login: el TTL de 24 h queda descartado (ver la sección 4).
 - **Sigue abierto**: la medición pasiva de la vida de la sesión (cada aviso de
-  caída dirá cuánto aguantó) y, del despliegue, la IP estable y que Chrome no
-  se actualice solo.
+  caída dirá cuánto aguantó) y, del despliegue, la IP estable y que Chrome no se
+  actualice solo.

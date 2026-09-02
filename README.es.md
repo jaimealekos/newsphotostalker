@@ -41,7 +41,9 @@ disco con pie de foto, autor, crédito y fecha.
 
 - 🔴 **Una luz por búsqueda** cuando entran fotos, con la fecha de la última. Se
   apaga cuando abres *esa* búsqueda, no cuando echas un vistazo al panel.
-- ⇅ **Panel ordenable** a mano, con separadores para agrupar.
+- ⇅ **Panel ordenable** a mano, con **grupos**: arrastra búsquedas de uno a otro
+  como en una lista de reproducción, y pulsa el nombre de un grupo para ver de
+  corrido las fotos de todas sus búsquedas.
 - ⤓ **Rellenar histórico**: baja hacia atrás hasta donde llegue tu retención.
 - 🗑️ **Retención** por tiempo (meses) o por espacio (MB), con purga automática.
 - 🖥️ Funciona en **Windows, macOS y Linux**. Sin instalar nada.

@@ -6,6 +6,7 @@ Guía de uso completa. Para una visión rápida, mira el [README](README.md).
 - [Instalación](#instalación)
 - [Primer arranque](#primer-arranque)
 - [El panel](#el-panel)
+- [Grupos y el feed de un grupo](#grupos-ordenar-el-panel-y-ver-un-grupo-entero-de-corrido)
 - [Crear y editar búsquedas](#crear-y-editar-búsquedas)
 - [Tipos de búsqueda por agencia](#tipos-de-búsqueda-por-agencia)
 - [Refresco: automático y manual](#refresco-automático-y-manual)
@@ -101,19 +102,51 @@ La columna **última novedad** muestra la fecha de la foto más reciente, y solo
 aparece en las búsquedas que tienen la luz encendida. Pasando el ratón por encima
 se ve cuándo entró en el panel (que puede ser bastante después de hacerse).
 
-### Ordenar el panel y agrupar con separadores
+### Grupos: ordenar el panel y ver un grupo entero de corrido
 
-El botón **⇅ Ordenar** de la portada entra en el modo edición:
+Cada búsqueda vive dentro de un **grupo**. Ninguna se queda fuera: la que no
+tenga uno propio aparece en **«Sin grupo»**, que es también donde nacen las
+recién creadas y donde vuelven las que se quedan sin casa.
 
-- **arrastra** cualquier fila (por el asa ⠿ o por la fila entera) para colocarla;
-- **+ Separador** añade una línea de título entre búsquedas; escribe su nombre en
-  el propio campo y **✕** lo quita;
+El botón **Grupos y orden** de la portada entra en el modo edición:
+
+- **arrastra** cualquier fila (por el asa ⠿ o por la fila entera) para colocarla,
+  y **suéltala en otro grupo para moverla ahí** — como se mueve una canción entre
+  listas de reproducción. Una búsqueda pertenece al grupo cuyo rótulo tiene
+  encima, así que no hay nada más que tocar;
+- **arrastrar el rótulo de un grupo mueve el grupo entero**, con sus búsquedas;
+- **+ Grupo** crea uno nuevo; escribe su nombre en el propio campo;
+- **✕** quita el grupo. **Sus búsquedas no se borran**: pasan a «Sin grupo». Para
+  borrar una búsqueda de verdad está su propio botón, dentro de ✎ Editar;
 - todo se guarda solo al soltar o al escribir — el aviso de la cabecera lo
-  confirma («Orden guardado ✓»);
+  confirma («Guardado ✓»);
 - **✓ Hecho** vuelve al panel normal.
 
-El orden y los separadores se guardan en la cuenta, no en el navegador. Mientras
+También puedes cambiar una búsqueda de grupo desde **✎ Editar**, en el
+desplegable *Grupo*.
+
+Los grupos y el orden se guardan en la cuenta, no en el navegador. Mientras
 ordenas, el panel no se autorrefresca (si no, perderías el arrastre a medias).
+
+#### El feed de un grupo
+
+En el panel normal, **pulsa el nombre de un grupo** y verás **todas las fotos de
+todas sus búsquedas mezcladas, de la más nueva a la más vieja**. Es la forma de
+leer un bloque entero —«los de agencia en Madrid», «la guerra»— sin ir entrando
+búsqueda por búsqueda.
+
+Arriba se listan las búsquedas de las que sale el feed, y cada una lleva a la
+suya. Abrir el feed **no apaga ninguna luz** de novedades: es para leer, y dar
+por vistas quince búsquedas de golpe borraría justo lo que el panel usa para
+decirte dónde ha entrado algo. Las fotos que no habías visto salen destacadas
+igual que dentro de su búsqueda.
+
+> **¿Vienes de la versión 1.2?** Tus separadores se convierten en grupos solos, y
+> el panel queda exactamente como estaba: cada separador pasa a ser el grupo de
+> las búsquedas que tenía debajo, y lo que iba antes del primero se queda en «Sin
+> grupo». Los separadores sin rótulo pasan a llamarse «Sin título» — un grupo hay
+> que poder pulsarlo, y una etiqueta en blanco no se puede pulsar; renómbralo
+> desde *Grupos y orden*.
 
 ## Crear y editar búsquedas
 
@@ -309,7 +342,7 @@ reciba.
 app/
   config.py     Configuración + credenciales (YAML + env)
   database.py   Engine/sesión SQLAlchemy (SQLite, WAL)
-  models.py     User, Search, Separator, Asset, RunLog, AppSettings
+  models.py     User, Search, SearchGroup, Asset, RunLog, AppSettings
   storage.py    Ficheros en disco
   retention.py  Purga por tiempo / espacio
   scheduler.py  Refresco global (APScheduler) + ejecución manual + backfill

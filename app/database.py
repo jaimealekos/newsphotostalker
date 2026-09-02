@@ -106,6 +106,7 @@ def _bootstrap() -> None:
             text("UPDATE searches SET user_id = :uid WHERE user_id IS NULL"), {"uid": user.id}
         )
         _seed_positions(session, user.id)
+        _migrate_grupos(session, user.id)
 
 
 def _migrate_searches(session: Session) -> None:
@@ -125,6 +126,132 @@ def _migrate_searches(session: Session) -> None:
         session.execute(
             text("UPDATE searches SET seen_at = :now"), {"now": datetime.now(timezone.utc)}
         )
+
+
+def _migrate_grupos(session: Session, user_id: int) -> None:
+    """Convierte los separadores (1.1–1.2) en grupos, y no deja búsquedas sueltas.
+
+    El separador era una raya suelta: el bloque que «abría» era todo lo que
+    venía detrás en la lista ordenada, hasta el siguiente separador. Esa lectura
+    —la que ya se veía en pantalla— es la que se conserva aquí, para que al
+    actualizar el panel salga exactamente igual que estaba: cada separador se
+    convierte en el grupo de las búsquedas que le seguían, y las que iban ANTES
+    del primero se quedan en «Sin grupo».
+
+    Un separador sin rótulo (los que solo metían aire) pasa a llamarse «Sin
+    título»: como grupo hay que poder pulsarlo para abrir su feed, y una etiqueta
+    en blanco no se puede pulsar. Se renombra en dos segundos desde «ordenar».
+
+    Idempotente y sin pérdida: solo añade la columna si falta, solo lee la tabla
+    vieja si existe, y al terminar la deja sin borrar hasta haberla vaciado.
+    """
+    from .models import Search, SearchGroup
+
+    cols = [row[1] for row in session.execute(text("PRAGMA table_info(searches)"))]
+    if "group_id" not in cols:
+        session.execute(text("ALTER TABLE searches ADD COLUMN group_id INTEGER"))
+        log.warning("Migración: añadida la columna searches.group_id")
+
+    tablas = {
+        row[0]
+        for row in session.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='separators'")
+        )
+    }
+    if tablas:
+        # Se mezclan por posición con el MISMO desempate que usaba el panel (a
+        # igualdad, el separador va delante), o el primer bloque se comería la
+        # raya que lo abría.
+        seps = list(
+            session.execute(
+                text("SELECT id, label, position FROM separators WHERE user_id = :u"),
+                {"u": user_id},
+            )
+        )
+        if seps:
+            busquedas = list(
+                session.scalars(select(Search).where(Search.user_id == user_id))
+            )
+            filas = [(int(p), 0, str(lab or ""), None) for _id, lab, p in seps]
+            filas += [(int(s.position), 1, "", s) for s in busquedas]
+            filas.sort(key=lambda f: (f[0], f[1]))
+
+            grupo = None
+            posicion = 0
+            dentro = 0
+            for _pos, es_busqueda, etiqueta, search in filas:
+                if not es_busqueda:
+                    grupo = SearchGroup(
+                        user_id=user_id, name=etiqueta.strip() or "Sin título", position=posicion
+                    )
+                    session.add(grupo)
+                    session.flush()
+                    posicion += 1
+                    dentro = 0
+                    continue
+                if search.group_id is not None:
+                    continue
+                if grupo is None:
+                    grupo = _grupo_por_defecto(session, user_id, posicion)
+                    posicion += 1
+                search.group_id = grupo.id
+                search.position = dentro
+                dentro += 1
+            session.flush()
+            log.warning("Migración: %s separadores convertidos en grupos", len(seps))
+
+        session.execute(text("DELETE FROM separators WHERE user_id = :u"), {"u": user_id})
+        sobran = session.scalar(text("SELECT COUNT(*) FROM separators")) or 0
+        if not sobran:
+            session.execute(text("DROP TABLE separators"))
+            log.warning("Migración: la tabla separators ya no hace falta")
+
+    # Nadie se queda fuera: lo pide el propio panel (toda búsqueda vive dentro de
+    # un grupo) y es también la red que recoge lo que llegue por otra vía —una
+    # base tocada a mano, un grupo borrado a pelo—.
+    huerfanas = list(
+        session.scalars(
+            select(Search)
+            .where(Search.user_id == user_id, Search.group_id.is_(None))
+            .order_by(Search.position, Search.id)
+        )
+    )
+    if huerfanas:
+        grupo = _grupo_por_defecto(session, user_id)
+        hueco = (
+            session.scalar(
+                select(func.max(Search.position)).where(Search.group_id == grupo.id)
+            )
+            or -1
+        ) + 1
+        for search in huerfanas:
+            search.group_id = grupo.id
+            search.position = hueco
+            hueco += 1
+        log.warning("Migración: %s búsquedas adoptadas por «%s»", len(huerfanas), grupo.name)
+
+
+def _grupo_por_defecto(session: Session, user_id: int, posicion: int | None = None):
+    """El grupo «Sin grupo», creándolo si aún no existe."""
+    from .models import GRUPO_POR_DEFECTO, SearchGroup
+
+    grupo = session.scalars(
+        select(SearchGroup).where(
+            SearchGroup.user_id == user_id, SearchGroup.name == GRUPO_POR_DEFECTO
+        )
+    ).first()
+    if grupo is None:
+        if posicion is None:
+            posicion = (
+                session.scalar(
+                    select(func.max(SearchGroup.position)).where(SearchGroup.user_id == user_id)
+                )
+                or -1
+            ) + 1
+        grupo = SearchGroup(user_id=user_id, name=GRUPO_POR_DEFECTO, position=posicion)
+        session.add(grupo)
+        session.flush()
+    return grupo
 
 
 def _migrate_assets(session: Session) -> None:
@@ -222,12 +349,12 @@ def _seed_positions(session: Session, user_id: int) -> None:
     Se respeta el orden que mostraba antes del modo edición (agencia y luego
     nombre), para que la primera vista sea idéntica a la de siempre.
     """
-    from .models import Search, Separator
+    from .models import Search, SearchGroup
 
     ordered = session.scalar(
         select(func.count(Search.id)).where(Search.user_id == user_id, Search.position != 0)
     ) or 0
-    if ordered or session.scalar(select(func.count(Separator.id))):
+    if ordered or session.scalar(select(func.count(SearchGroup.id))):
         return
     searches = session.scalars(
         select(Search).where(Search.user_id == user_id).order_by(Search.agency, Search.name)

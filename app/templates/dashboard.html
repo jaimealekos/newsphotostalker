@@ -5,14 +5,14 @@
 <div class="page-head page-head-actions-only">
   <div class="head-actions">
     {% if order_mode %}
-    <span class="order-hint muted small" id="order-status">arrastra las filas para ordenarlas</span>
-    <form method="post" action="/separators" class="inline">
-      <button class="btn btn-ghost">+ separador</button>
+    <span class="order-hint muted small" id="order-status">arrastra las búsquedas de un grupo a otro</span>
+    <form method="post" action="/groups" class="inline">
+      <button class="btn btn-ghost">+ grupo</button>
     </form>
     <a href="/" class="btn btn-primary">✓ hecho</a>
     {% else %}
     <a href="/searches/new" class="btn btn-primary">+ nueva búsqueda</a>
-    <a href="/?order=1" class="btn btn-ghost" title="ordenar y separar las búsquedas">ordenar</a>
+    <a href="/?order=1" class="btn btn-ghost" title="crear grupos y mover búsquedas entre ellos">grupos y orden</a>
     {% endif %}
   </div>
 </div>
@@ -30,34 +30,43 @@
     </tr>
   </thead>
   <tbody>
-    {% for row in rows %}
+    {% for block in blocks %}
+    {% set g = block.group %}
 
-    {% if row.kind == 'separator' %}
-    {% set sep = row.separator %}
-    {# Sin título fuera del modo edición: solo aire, pero conservando el filete
-       de la fila, que es la barra que abre el bloque de abajo. #}
-    <tr class="row-sep{% if not order_mode and not sep.label %} row-sep-blank{% endif %}"
-        data-type="separator" data-id="{{ sep.id }}" {% if order_mode %}draggable="true"{% endif %}>
+    {# Cabecera del grupo. Fuera del modo edición es un ENLACE a su feed: es la
+       funcionalidad nueva, y el sitio donde el usuario va a buscarla es el
+       propio rótulo. Se mantiene la maqueta del separador de la 1.1 —aire
+       encima y una regla con el rótulo—, que es el corte entre bloques que ya
+       había. #}
+    <tr class="row-sep" data-type="group" data-id="{{ g.id }}"
+        {% if order_mode %}draggable="true"{% endif %}>
       {% if order_mode %}
-      <td class="col-grip"><span class="grip" title="Arrastra para mover">⠿</span></td>
+      <td class="col-grip"><span class="grip" title="Arrastra para mover el grupo entero">⠿</span></td>
       <td colspan="4">
-        <input class="sep-input" type="text" value="{{ sep.label }}" placeholder="Título del separador"
-               aria-label="Título del separador">
+        <input class="sep-input" type="text" value="{{ g.name }}" placeholder="Nombre del grupo"
+               aria-label="Nombre del grupo">
       </td>
       <td class="actions">
-        <form method="post" action="/separators/{{ sep.id }}/delete" class="inline"
-              onsubmit="return confirm('¿Quitar este separador?');">
-          <button class="icon-btn danger" title="Quitar separador">✕</button>
+        <form method="post" action="/groups/{{ g.id }}/delete" class="inline"
+              onsubmit="return confirm('¿Quitar el grupo «{{ g.titulo }}»? Sus búsquedas NO se borran: pasan a «Sin grupo».');">
+          <button class="icon-btn danger" title="Quitar el grupo (las búsquedas se conservan)">✕</button>
         </form>
       </td>
       {% else %}
-      {# Sin título no se pinta rótulo ni filete: el separador es solo aire. #}
-      <td colspan="5">{% if sep.label %}<span class="sep-label">{{ sep.label }}</span>{% endif %}</td>
+      <td colspan="5">
+        <a class="sep-label" href="/groups/{{ g.id }}"
+           title="Ver de corrido las fotos de las {{ block.rows|length }} búsquedas de este grupo">
+          <span>{{ g.titulo }}</span>
+          <span class="sep-meta">
+            {{ block.rows|length }} {{ 'búsqueda' if block.rows|length == 1 else 'búsquedas' }}
+            {%- if block.con_novedades %} · <b class="sep-nuevas">{{ block.con_novedades }} con {{ 'novedad' if block.con_novedades == 1 else 'novedades' }}</b>{% endif %}
+          </span>
+        </a>
+      </td>
       {% endif %}
     </tr>
 
-    {% else %}
-    {% set st = row.stats %}
+    {% for st in block.rows %}
     {% set s = st.search %}
 
     {% if edit_id == s.id and not order_mode %}
@@ -83,6 +92,13 @@
             <select name="kind">
               {% for val, lbl in kind_choices %}
               <option value="{{ val }}" {% if s.kind == val %}selected{% endif %}>{{ lbl }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Grupo
+            <select name="group_id">
+              {% for grupo in all_groups %}
+              <option value="{{ grupo.id }}" {% if s.group_id == grupo.id %}selected{% endif %}>{{ grupo.titulo }}</option>
               {% endfor %}
             </select>
           </label>
@@ -151,7 +167,17 @@
       </td>
     </tr>
     {% endif %}
-    {% endif %}
+
+    {% else %}
+    {# Grupo vacío: en modo edición hace falta verlo para poder soltarle algo
+       dentro; fuera, una fila que dice que está vacío es más honesta que un
+       rótulo suelto sin nada debajo. #}
+    <tr class="row-grupo-vacio" data-type="empty" data-group="{{ g.id }}">
+      <td colspan="{{ 6 if order_mode else 5 }}" class="empty-mini">
+        {% if order_mode %}arrastra búsquedas hasta aquí{% else %}grupo vacío{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
 
     {% else %}
     <tr><td colspan="{{ 6 if order_mode else 5 }}" class="empty">No hay búsquedas todavía. <a href="/searches/new">Crea la primera</a>.</td></tr>

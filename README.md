@@ -41,7 +41,9 @@ your disk with captions, bylines, credits and dates.
 
 - 🔴 **A flag per search** when new photos arrive, with the date of the latest
   one. It goes out when you open *that* search — not when you glance at the panel.
-- ⇅ **Arrange the panel** by hand and group searches with separators.
+- ⇅ **Arrange the panel** by hand with **groups**: drag searches from one to
+  another like a playlist, and click a group name to see every photo from all its
+  searches in one chronological feed.
 - ⤓ **Backfill**: pull the archive backwards, as far as your retention allows.
 - 🗑️ **Retention** by time (months) or by disk space (MB), purged automatically.
 - 🖥️ Runs on **Windows, macOS and Linux**. Nothing to install.

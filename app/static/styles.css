@@ -209,31 +209,41 @@ table.ordering tbody tr.dragging { opacity: .35; }
 table.ordering tbody tr.dragging td { background: var(--paper-3); }
 .order-hint { color: var(--muted); }
 .order-error { color: var(--flag); }
-/* Separador: una regla con su rótulo, como el corte entre despachos. Sin
-   título no lleva ni rótulo ni filete —la plantilla no pinta el span— y queda
-   solo el aire que abre el bloque siguiente. */
+/* Cabecera de grupo: la misma maqueta que el separador de la 1.1 —aire encima y
+   una regla con el rótulo—, porque ese corte entre bloques es justo lo que se
+   quería conservar. Lo que cambia es que ahora se puede pulsar: abre el feed del
+   grupo. */
 /* Selector largo a propósito: `table.searches td` le gana en especificidad a
    `.row-sep td` y volvería a pintar el filete. */
 table.searches tr.row-sep td {
   background: transparent; padding-top: 22px; border-bottom: none;
 }
-/* Separador sin título: el rótulo (y su regla negra) no se pintan, pero la fila
-   recupera el filete de siempre, que es lo que le da borde superior al bloque
-   de abajo. Con título esa función ya la cumple la regla del propio rótulo. */
-table.searches tr.row-sep-blank td { border-bottom: 1px solid var(--rule); }
-/* Varios separadores seguidos hacen UNA sola banda de aire: el que lleva otro
-   detrás no pinta su filete, así que no aparece una línea suelta en mitad del
-   hueco. La fila normal de encima sí conserva el suyo: es el que cierra su
-   bloque, igual que entre dos búsquedas cualesquiera. */
+/* Dos grupos seguidos (uno de ellos vacío) hacen UNA sola banda de aire. */
 table.searches tbody tr.row-sep:has(+ tr.row-sep) td { border-bottom: none; }
 tbody tr:first-child .sep-label, tbody tr:first-child .sep-input { margin-top: 0; }
 .sep-label {
-  display: block; font: var(--cable); text-transform: uppercase;
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  font: var(--cable); text-transform: uppercase;
   letter-spacing: .2em; color: var(--ink); padding-bottom: 5px;
   border-bottom: 1px solid var(--ink);
 }
+/* Es un enlace: se comporta como el resto de la tipografía del panel y solo se
+   subraya al pasar por encima, para que el filete del rótulo no se doble. */
+a.sep-label { text-decoration: none; }
+a.sep-label:hover > span:first-child { color: var(--flag); }
+.sep-meta {
+  font: var(--cable); letter-spacing: .12em; color: var(--muted);
+  text-transform: none; white-space: nowrap;
+}
+.sep-nuevas { color: var(--flag); font-weight: 700; }
+/* Grupo sin nada dentro: en modo edición es la diana donde soltar. */
+.empty-mini {
+  color: var(--muted); font: var(--cable); letter-spacing: .12em;
+  text-transform: uppercase; padding: 10px 14px !important;
+}
+table.ordering tbody tr.row-grupo-vacio td { border-bottom: 1px dashed var(--rule-2); }
 /* Selector con el elemento delante para ganarle en especificidad a la regla
-   general de input[type=text] de más abajo: el separador no lleva caja. */
+   general de input[type=text] de más abajo: el grupo no lleva caja. */
 input.sep-input {
   width: 100%; background: transparent; border: none;
   border-bottom: 1px solid var(--ink); color: var(--ink); padding: 0 0 5px;
@@ -241,6 +251,17 @@ input.sep-input {
 }
 input.sep-input:focus { outline: none; border-bottom-color: var(--flag); }
 input.sep-input::placeholder { color: var(--muted); font-weight: 400; letter-spacing: .2em; }
+
+/* De qué búsquedas está hecho el feed de un grupo. */
+.grupo-fuentes { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 22px; }
+.fuente {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--rule); padding: 4px 10px; background: var(--paper-2);
+  font: var(--cable); letter-spacing: .08em; color: var(--ink); text-decoration: none;
+}
+.fuente:hover { border-color: var(--ink); }
+.fuente-nueva { border-color: var(--flag); }
+.fuente-nombre { text-transform: none; letter-spacing: 0; }
 
 /* --- Panel de edición de una búsqueda ------------------------------------ */
 .row-edit td { padding: 20px 14px; background: var(--paper-2); }

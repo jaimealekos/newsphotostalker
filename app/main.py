@@ -208,7 +208,8 @@ def dashboard(
         "dashboard.html",
         _ctx(
             request,
-            rows=services.panel_rows(db, user.id),
+            blocks=services.panel_blocks(db, user.id),
+            all_groups=services.user_groups(db, user.id),
             edit_id=edit,
             order_mode=bool(order),
             user=user,
@@ -349,9 +350,14 @@ def update_search(
     retention_months: str = Form(""),
     retention_mb: str = Form(""),
     enabled: str = Form("off"),
+    group_id: str = Form(""),
 ):
     search = _own_search(db, search_id, user)
     if search:
+        # El grupo solo se acepta si es del usuario: el desplegable lo trae de su
+        # propio panel, pero un POST a mano podría mandar el de cualquiera.
+        if group_id and not services.own_group(db, int(group_id), user.id):
+            group_id = ""
         services.update_search(db, search, locals_to_form(locals()))
     return RedirectResponse("/", status_code=303)
 
@@ -395,49 +401,85 @@ def backfill_search_now(
     return RedirectResponse(f"/searches/{search_id}", status_code=303)
 
 
-# --- orden del panel y separadores -----------------------------------------
+# --- grupos y orden del panel ----------------------------------------------
 @app.post("/panel/order")
 async def save_panel_order(
     request: Request, db: Session = Depends(get_db), user: User = Depends(require_user)
 ):
-    """Guarda el orden que dejó el modo edición (búsquedas y separadores)."""
+    """Guarda cómo quedó el panel: orden de los grupos, y qué búsqueda va en cuál."""
     payload = await request.json()
     items = payload.get("items") if isinstance(payload, dict) else payload
     moved = services.reorder_panel(db, user.id, items if isinstance(items, list) else [])
     return JSONResponse({"ok": True, "moved": moved})
 
 
-@app.post("/separators")
-def add_separator(
+@app.post("/groups")
+def add_group(
     db: Session = Depends(get_db),
     user: User = Depends(require_user),
-    label: str = Form(""),
+    name: str = Form(""),
 ):
-    services.create_separator(db, user.id, label)
+    services.create_group(db, user.id, name)
     return RedirectResponse("/?order=1", status_code=303)
 
 
-@app.post("/separators/{separator_id}")
-def rename_separator(
-    separator_id: int,
+@app.post("/groups/{group_id}")
+def rename_group(
+    group_id: int,
     db: Session = Depends(get_db),
     user: User = Depends(require_user),
-    label: str = Form(""),
+    name: str = Form(""),
 ):
-    separator = services.own_separator(db, separator_id, user.id)
-    if separator:
-        services.update_separator(db, separator, label)
+    grupo = services.own_group(db, group_id, user.id)
+    if grupo:
+        services.rename_group(db, grupo, name)
     return RedirectResponse("/?order=1", status_code=303)
 
 
-@app.post("/separators/{separator_id}/delete")
-def remove_separator(
-    separator_id: int, db: Session = Depends(get_db), user: User = Depends(require_user)
-):
-    separator = services.own_separator(db, separator_id, user.id)
-    if separator:
-        services.delete_separator(db, separator)
+@app.post("/groups/{group_id}/delete")
+def remove_group(group_id: int, db: Session = Depends(get_db), user: User = Depends(require_user)):
+    """Quita el grupo. Sus búsquedas NO se borran: se mudan a «Sin grupo»."""
+    grupo = services.own_group(db, group_id, user.id)
+    if grupo:
+        services.delete_group(db, grupo)
     return RedirectResponse("/?order=1", status_code=303)
+
+
+@app.get("/groups/{group_id}", response_class=HTMLResponse)
+def group_view(
+    group_id: int,
+    request: Request,
+    page: int = 1,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """El feed del grupo: las fotos de todas sus búsquedas, de nueva a vieja.
+
+    A diferencia de entrar en una búsqueda, esto NO apaga ninguna luz de
+    novedades: el feed es para leer el bloque de corrido, y dar por vistas de
+    golpe todas las búsquedas del grupo borraría justo la información que el
+    panel usa para decir dónde ha entrado algo.
+    """
+    grupo = services.own_group(db, group_id, user.id)
+    if not grupo:
+        return RedirectResponse("/", status_code=303)
+
+    per_page = services.get_app_settings(db).photos_per_page
+    assets, total = services.group_assets(db, group_id, page=page, per_page=per_page)
+    return templates.TemplateResponse(
+        "group_view.html",
+        _ctx(
+            request,
+            grupo=grupo,
+            busquedas=services.group_search_stats(db, group_id, user.id),
+            assets=assets,
+            total=total,
+            page=page,
+            per_page=per_page,
+            destacadas=services.group_destacadas(db, assets, group_id),
+            user=user,
+        ),
+    )
 
 
 @app.get("/asset/{asset_id}", response_class=HTMLResponse)

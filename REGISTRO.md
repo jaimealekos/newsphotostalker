@@ -10,6 +10,35 @@
 
 ## Sin publicar
 
+### El panel se organiza en grupos, y cada grupo tiene su feed (02-09)
+
+Los separadores eran una raya suelta: marcaban un corte pero no *contenían*
+nada, así que no había dónde colgar nada de un bloque entero. Ahora son
+**grupos**, y toda búsqueda pertenece a uno (la que no tenga, a «Sin grupo»).
+
+- **Se arrastran como una lista de reproducción**: sueltas una búsqueda en otro
+  bloque y ya ha cambiado de grupo. El grupo sale de la posición en la lista, no
+  de un campo aparte, así que no hay dos estados que puedan discrepar. Arrastrar
+  el rótulo mueve el grupo entero con lo que lleva dentro.
+- **Crear, renombrar y borrar** desde «grupos y orden», con guardado solo.
+  Borrar un grupo **no borra sus búsquedas**: se mudan a «Sin grupo».
+- **Lo nuevo: el feed.** Pulsando el nombre de un grupo se ven de corrido las
+  fotos de todas sus búsquedas, mezcladas y de nueva a vieja. No apaga ninguna
+  luz de novedades: es para leer, no para dar quince búsquedas por vistas.
+- **La maqueta no cambia**: el grupo se pinta igual que el separador (aire y una
+  regla con el rótulo), que era justo el corte que se quería conservar.
+
+La migración conserva el panel tal cual: cada separador pasa a ser el grupo de
+las búsquedas que tenía debajo, y lo anterior al primero se queda en «Sin
+grupo». Probada contra el panel real (22 búsquedas, un separador sin rótulo
+entre «Alvaro Barrientos» y «APTOPIX») y verificada en el navegador de punta a
+punta: crear, renombrar, arrastrar entre grupos, borrar y abrir el feed.
+
+Un fallo cazado en pruebas: al borrar un grupo, SQLAlchemy recorría los hijos
+que aún tenía cargados y les ponía el `group_id` a NULL **después** de la
+mudanza — las búsquedas acababan fuera de todo grupo, o sea fuera del panel. Se
+mueven por la relación, no por la clave. 190 pruebas en verde.
+
 ### El corte de Reuters ya sale con su nombre, y el aviso deja de mandar al login (02-09)
 
 Saltó la alerta el 31-08 a las 11:07 y el diagnóstico de la 1.2.2 hizo su
