@@ -204,29 +204,44 @@ lo que sí hay que volver a bajar es el Chromium
    de arriba.
 2. **Cada cambio se anota en [REGISTRO.md](REGISTRO.md)**: dos o tres líneas en
    castellano, lo más nuevo arriba, diciendo *qué* cambió y *por qué*.
-3. **Se escribe en castellano**: comentarios, docstrings, mensajes de commit,
+3. **Los encargos sueltos se apuntan, no se ejecutan.** Cuando el dueño pide un
+   cambio al vuelo —«estaría bien que…», «cambia el color de…», «añade un botón
+   para…»— **no se hace en ese momento**: se anota en
+   [PENDIENTES.md](PENDIENTES.md) y se contesta **«apuntado»**, sin más. Se hacen
+   todos de una vez cuando él diga que toca. Es cosa suya: prefiere soltar ideas
+   según se le ocurren sin que cada una abra una tanda de trabajo, y luego
+   despacharlas juntas.
+   - Lo que **sí** se hace en el momento: lo que pida hacer ya («hazlo ahora»,
+     «ejecuta»), las preguntas —una pregunta no es un encargo— y las averías que
+     estén rompiendo algo.
+   - Al ejecutar la lista, cada punto hecho se borra de `PENDIENTES.md` y se
+     cuenta en `REGISTRO.md` como cualquier otro cambio.
+4. **Se escribe en castellano**: comentarios, docstrings, mensajes de commit,
    avisos y documentación. (Queda código antiguo con comentarios en inglés; lo
    nuevo va en castellano.)
-4. **El comentario explica el porqué, no el qué.** La costumbre de la casa es
+5. **El comentario explica el porqué, no el qué.** La costumbre de la casa es
    dejar escrito el motivo real —incluida la avería concreta y su fecha— para que
    nadie «limpie» mañana algo que está puesto a propósito. Las pruebas hacen lo
    mismo: su docstring cuenta qué se rompió en producción.
-5. **Nada se da por bueno sin las pruebas en verde.** Toda corrección de una
+6. **Nada se da por bueno sin las pruebas en verde.** Toda corrección de una
    avería real trae una prueba que falla con el código viejo.
-6. **La documentación cuenta el programa que existe**, no el que se pensaba
+7. **La documentación cuenta el programa que existe**, no el que se pensaba
    hacer: si cambia el comportamiento, se tocan `MANUAL.md`, `README.md`,
    `README.es.md` y `config.example.yaml` en el mismo cambio.
-7. **Los mensajes de commit son un titular en castellano** que dice el efecto
+8. **Los mensajes de commit son un titular en castellano** que dice el efecto
    («Los avisos admiten una postdata…»), y el cuerpo explica el porqué y qué se
    verificó.
-8. **Publicar es aparte**: un commit de versión (`1.2.2`), la etiqueta `v1.2.2` y
-   que la CI haga el resto.
-9. **El login de Reuters no se automatiza. Nunca.** Ni «solo para probar»: cada
-   intento fallido contra el muro acerca otro bloqueo de la cuenta.
-10. **Secretos y datos de infraestructura, fuera del repositorio.** El
+9. **Commitear no se pregunta** (autorizado el 28-08-2026): con el trabajo
+   terminado y las pruebas en verde, se commitea y se sube a `main` sin pedir
+   permiso. **Publicar una versión** (etiqueta `v*`, que dispara la CI y la
+   release) **y desplegar en el NAS siguen siendo decisión suya.**
+10. **El login de Reuters no se automatiza. Nunca.** Ni «solo para probar»: cada
+    intento fallido contra el muro acerca otro bloqueo de la cuenta.
+11. **Secretos y datos de infraestructura, fuera del repositorio.** El
     repositorio es público: `config.local.yaml`, `secret.key` y `data/` no se
     suben, y las direcciones del NAS tampoco se escriben aquí.
-11. **Al NAS no se entra sin que lo pida el dueño.**
+12. **Al NAS no se entra sin que lo pida el dueño.** Y cuando lo pida: **copia de
+    seguridad de `data/app.db` antes de nada** si el despliegue trae migración.
 
 ## 10. Estado a 2026-09-02
 
@@ -235,7 +250,9 @@ lo que sí hay que volver a bajar es el Chromium
 - **Sin publicar, en `main`**, dos cosas: el corte de Reuters con nombre propio
   (el aviso de agencia ya no manda a rehacer la sesión a ciegas) y **los grupos
   del panel con su feed**, que es lo que estrena la sección 5. 190 pruebas en
-  verde. Falta etiquetar la versión y desplegarla.
+  verde. **Ya desplegado en el NAS** (02-09, con copia de seguridad previa de la
+  base y migración verificada: 22 búsquedas, dos grupos, cero huérfanas). Lo que
+  falta es solo etiquetar la versión.
 - **Cerrado con los datos del NAS**: los dos episodios de «no result cards con la
   sesión viva» (27-08 unas 4 h; 31-08 unas 8 h) son **cortes de Reuters**, no
   averías de aquí, y se recuperaron solos. La sesión lleva **13+ días viva** sin

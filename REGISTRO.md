@@ -10,6 +10,26 @@
 
 ## Sin publicar
 
+### Norma nueva: los encargos sueltos se apuntan y se hacen en tanda (02-09)
+
+El dueño suelta ideas según se le ocurren y no quiere que cada una abra una tanda
+de trabajo. Desde ahora, un cambio pedido al vuelo se anota en el **PENDIENTES.md**
+nuevo y se contesta «apuntado»; se ejecutan todos juntos cuando él lo diga. Siguen
+haciéndose en el momento: lo que pida hacer ya, las preguntas y las averías en
+curso. Queda como norma 3 de la bitácora, y `CLAUDE.md` la pone entre las tres que
+no se pueden olvidar.
+
+De paso, dos normas que se practicaban sin estar escritas: commitear no se
+pregunta (publicar versión y NAS sí), y un despliegue con migración empieza por la
+copia de seguridad de `data/app.db`.
+
+### Los grupos ya corren en el NAS (02-09)
+
+Desplegado a las 06:24 con copia previa de la base (`app.db.bak-20260902-062335`).
+La migración salió exacta contra el panel real: 22 búsquedas, el corte donde
+estaba —entre «Alvaro Barrientos» y «APTOPIX»—, cero huérfanas y la tabla
+`separators` retirada. Arranque sin una sola traza.
+
 ### El panel se organiza en grupos, y cada grupo tiene su feed (02-09)
 
 Los separadores eran una raya suelta: marcaban un corte pero no *contenían*
