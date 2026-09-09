@@ -8,7 +8,7 @@
 > Los cambios, uno a uno y por fechas, van en [REGISTRO.md](REGISTRO.md).
 > Cómo se usa el programa, en [MANUAL.md](MANUAL.md).
 >
-> **Última actualización: 2026-09-02.**
+> **Última actualización: 2026-09-10.**
 
 ---
 
@@ -243,20 +243,45 @@ lo que sí hay que volver a bajar es el Chromium
 12. **Al NAS no se entra sin que lo pida el dueño.** Y cuando lo pida: **copia de
     seguridad de `data/app.db` antes de nada** si el despliegue trae migración.
 
-## 10. Estado a 2026-09-02
+## 10. Estado a 2026-09-10
 
-- La última versión **publicada** es la **1.2.2** (28-08-2026), y es la que
-  **corre en el NAS** desde esa noche.
-- **Sin publicar, en `main`**, dos cosas: el corte de Reuters con nombre propio
-  (el aviso de agencia ya no manda a rehacer la sesión a ciegas) y **los grupos
-  del panel con su feed**, que es lo que estrena la sección 5. 190 pruebas en
-  verde. **Ya desplegado en el NAS** (02-09, con copia de seguridad previa de la
-  base y migración verificada: 22 búsquedas, dos grupos, cero huérfanas). Lo que
-  falta es solo etiquetar la versión.
+**El programa funciona y está desplegado.** No hay nada a medias ni ningún
+cambio a medio hacer: el árbol está limpio, `main` y `origin/main` van a la par,
+y las **190 pruebas** pasan.
+
+- **Lo que corre en el NAS** es el código de `main` (desplegado el 02-09-2026 con
+  copia previa de la base). Los cuatro commits posteriores a la etiqueta `v1.2.2`
+  ya están ahí, salvo el último —`1f239bd`—, que **solo toca documentación**: el
+  programa desplegado y el de `main` son funcionalmente el mismo.
+- **La versión publicada sigue siendo la 1.2.2** (28-08-2026). `main` va **cuatro
+  commits por delante** de esa etiqueta, con dos cosas que nunca han llegado a
+  una release: el **corte de Reuters con nombre propio** y **los grupos del panel
+  con su feed** (sección 5).
 - **Cerrado con los datos del NAS**: los dos episodios de «no result cards con la
-  sesión viva» (27-08 unas 4 h; 31-08 unas 8 h) son **cortes de Reuters**, no
-  averías de aquí, y se recuperaron solos. La sesión lleva **13+ días viva** sin
-  re-login: el TTL de 24 h queda descartado (ver la sección 4).
-- **Sigue abierto**: la medición pasiva de la vida de la sesión (cada aviso de
-  caída dirá cuánto aguantó) y, del despliegue, la IP estable y que Chrome no se
-  actualice solo.
+  sesión viva» (27-08, unas 4 h; 31-08, unas 8 h) son **cortes de Reuters**, no
+  averías de aquí, y se recuperaron solos. El TTL de 24 h queda descartado: la
+  sesión llevaba 13+ días viva sin re-login (ver la sección 4).
+
+### Por dónde se retoma
+
+1. **Publicar la 1.3.0.** Es lo único pendiente de verdad, y es **decisión suya**
+   (norma 9): el trabajo está hecho, probado y desplegado, pero sin etiquetar.
+   Cuando lo diga: commit de versión `1.3.0` en `app/__init__.py`, etiqueta
+   `v1.3.0` y la CI compila los tres paquetes. Es una **minor**, no una patch:
+   los grupos cambian el modelo de datos y migran la base.
+2. **Mirar [PENDIENTES.md](PENDIENTES.md)** antes de nada: ahí está la cola de
+   encargos (norma 3). A fecha de hoy no tiene ninguno suyo, solo dos ideas del
+   propio proyecto.
+3. **Comprobar cómo ha ido el NAS** estos días —desde el 02-09 no se ha mirado—:
+   si la sesión de Reuters sigue viva (llevaría unas tres semanas, que sería el
+   récord con diferencia) y si ha habido más cortes. Los datos están en el NAS
+   (`data/reuters_sesion.json`, `alert_state.json` y la tabla `run_logs`), y
+   **no se entra ahí sin que él lo pida** (norma 12).
+
+### Lo que sigue abierto
+
+- La **medición pasiva** de cuánto vive una sesión de Reuters: cada aviso de
+  caída dice los días que aguantó. Es la única forma de saberlo, y solo avanza
+  con el tiempo.
+- Del despliegue, no del código: **IP estable** y que **Chrome no se actualice
+  solo**. Cualquiera de las dos cosas tira la sesión de Reuters.

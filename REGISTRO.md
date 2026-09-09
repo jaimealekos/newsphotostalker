@@ -10,6 +10,15 @@
 
 ## Sin publicar
 
+### Cierre de sesión: la bitácora dice por dónde se retoma (10-09)
+
+Sin cambios en el programa. Se pone al día el estado de la bitácora, que se
+había quedado en el 02-09, y se deja escrito el punto de retoma: **publicar la
+1.3.0**, que es lo único pendiente y es decisión suya. `main` va cuatro commits
+por delante de `v1.2.2` con dos cosas que nunca han llegado a una release —el
+corte de Reuters con nombre y los grupos del panel—, y el NAS ya las corre desde
+el 02-09. Se apunta también que desde esa fecha nadie ha mirado cómo va el NAS.
+
 ### Norma nueva: los encargos sueltos se apuntan y se hacen en tanda (02-09)
 
 El dueño suelta ideas según se le ocurren y no quiere que cada una abra una tanda
